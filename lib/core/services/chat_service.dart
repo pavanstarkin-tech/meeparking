@@ -6,7 +6,9 @@ import 'firebase_rtdb_service.dart';
 class ChatService {
   /// Generate deterministic Chat ID derived from 2 user IDs
   static String getChatId(String user1Id, String user2Id) {
-    final list = [user1Id, user2Id]..sort();
+    final u1 = user1Id.trim().isNotEmpty ? user1Id.trim() : 'user_auth_01';
+    final u2 = user2Id.trim().isNotEmpty ? user2Id.trim() : 'partner_01';
+    final list = [u1, u2]..sort();
     return 'chat_${list[0]}_${list[1]}';
   }
 
@@ -15,16 +17,22 @@ class ChatService {
     required String currentUserId,
     required String partnerId,
   }) {
-    final chatId = getChatId(currentUserId, partnerId);
+    final effectiveUid = currentUserId.trim().isNotEmpty ? currentUserId.trim() : 'user_auth_01';
+    final effectivePartnerId = partnerId.trim().isNotEmpty ? partnerId.trim() : 'partner_01';
+    final chatId = getChatId(effectiveUid, effectivePartnerId);
+
     return FirebaseRtdbService.streamChatMessages(chatId).map((messages) {
       return messages.map((m) {
+        final isMe = m.senderId == effectiveUid ||
+            (effectiveUid == 'user_auth_01' && m.senderId.startsWith('user_')) ||
+            (effectiveUid == 'partner_01' && m.senderId.startsWith('partner_'));
         return ChatMessage(
           id: m.id,
           senderId: m.senderId,
           senderName: m.senderName,
           text: m.text,
           timestamp: m.timestamp,
-          isMe: m.senderId == currentUserId,
+          isMe: isMe,
         );
       }).toList();
     });
@@ -44,18 +52,22 @@ class ChatService {
     String? partnerRole,
   }) async {
     if (text.trim().isEmpty) return;
-    final chatId = getChatId(currentUserId, partnerId);
+
+    final effectiveUid = currentUserId.trim().isNotEmpty ? currentUserId.trim() : 'user_auth_01';
+    final effectivePartnerId = partnerId.trim().isNotEmpty ? partnerId.trim() : 'partner_01';
+    final chatId = getChatId(effectiveUid, effectivePartnerId);
+
     final msg = ChatMessage(
-      id: 'msg_${const Uuid().v4().substring(0, 8)}',
-      senderId: currentUserId,
-      senderName: currentUserName.isNotEmpty ? currentUserName : 'User',
+      id: 'msg_${DateTime.now().millisecondsSinceEpoch}_${const Uuid().v4().substring(0, 4)}',
+      senderId: effectiveUid,
+      senderName: currentUserName.trim().isNotEmpty ? currentUserName.trim() : 'User',
       text: text.trim(),
       timestamp: DateTime.now(),
       isMe: true,
     );
 
     final meta = <String, dynamic>{
-      'participants': [currentUserId, partnerId],
+      'participants': [effectiveUid, effectivePartnerId],
       if (partnerName != null && partnerName.isNotEmpty) 'otherUserName': partnerName,
       if (partnerPhoto != null && partnerPhoto.isNotEmpty) 'otherUserPhoto': partnerPhoto,
       if (spaceTitle != null && spaceTitle.isNotEmpty) 'spaceTitle': spaceTitle,
@@ -69,6 +81,7 @@ class ChatService {
 
   /// Stream user conversations list
   static Stream<List<ChatConversation>> streamConversations(String userId, {bool isPartner = false}) {
-    return FirebaseRtdbService.streamUserConversations(userId, isPartner: isPartner);
+    final effectiveUid = userId.trim().isNotEmpty ? userId.trim() : (isPartner ? 'partner_01' : 'user_auth_01');
+    return FirebaseRtdbService.streamUserConversations(effectiveUid, isPartner: isPartner);
   }
 }

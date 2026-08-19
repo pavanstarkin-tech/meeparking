@@ -25,17 +25,18 @@ class ChatMessage {
 
   Map<String, dynamic> toMap() => toJson();
 
-  factory ChatMessage.fromJson(Map<String, dynamic> json, [String? docId]) {
-    final sId = json['senderId'] ?? '';
+  factory ChatMessage.fromJson(Map<String, dynamic> json, [String? docId, String? currentUserId]) {
+    final sId = (json['senderId'] ?? '').toString();
+    final cId = currentUserId ?? 'user_auth_01';
     return ChatMessage(
       id: docId ?? json['id'] ?? '',
       senderId: sId,
       senderName: json['senderName'] ?? 'User',
       text: json['text'] ?? '',
-      timestamp: json['timestamp'] != null ? DateTime.parse(json['timestamp']) : DateTime.now(),
-      isMe: sId == 'user_01',
+      timestamp: json['timestamp'] != null ? (DateTime.tryParse(json['timestamp'].toString()) ?? DateTime.now()) : DateTime.now(),
+      isMe: sId.isNotEmpty && (sId == cId || (cId == 'user_auth_01' && sId.startsWith('user_')) || (cId == 'partner_01' && sId.startsWith('partner_'))),
     );
   }
 
-  factory ChatMessage.fromMap(Map<String, dynamic> map, [String? docId]) => ChatMessage.fromJson(map, docId);
+  factory ChatMessage.fromMap(Map<String, dynamic> map, [String? docId, String? currentUserId]) => ChatMessage.fromJson(map, docId, currentUserId);
 }

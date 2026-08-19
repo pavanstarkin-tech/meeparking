@@ -82,12 +82,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (text.isEmpty) return;
 
     final user = ref.read(userProfileProvider);
+    final effectiveUid = user.uid.trim().isNotEmpty ? user.uid.trim() : 'user_auth_01';
+    final effectiveName = user.name.trim().isNotEmpty ? user.name.trim() : 'User';
     _inputController.clear();
 
     await ChatService.sendMessage(
-      currentUserId: user.uid,
-      currentUserName: user.name,
+      currentUserId: effectiveUid,
+      currentUserName: effectiveName,
       partnerId: widget.partnerId,
+      partnerName: _resolvedName,
+      partnerPhoto: _resolvedPhoto,
+      spaceTitle: widget.spaceTitle,
+      vehicleInfo: widget.vehicleInfo,
+      partnerRole: _resolvedRole,
       text: text,
     );
   }
@@ -110,6 +117,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(userProfileProvider);
+    final effectiveUid = user.uid.trim().isNotEmpty ? user.uid.trim() : 'user_auth_01';
 
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
@@ -158,8 +166,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                   Text(
                     _resolvedPhone.isNotEmpty
-                        ? '$_resolvedSubtitle • $_resolvedPhone'
-                        : _resolvedSubtitle,
+                        ? _resolvedPhone
+                        : (_resolvedSubtitle.isNotEmpty ? _resolvedSubtitle : _resolvedRole),
                     style: const TextStyle(
                       fontSize: 11,
                       color: AppColors.textSecondaryLight,
@@ -173,7 +181,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ],
         ),
         actions: [
-          // Voice Call Button Only (No Video Call Button)
           IconButton(
             icon: const Icon(Icons.phone_outlined, color: AppColors.primary),
             tooltip: 'Audio Call',
@@ -187,7 +194,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           Expanded(
             child: StreamBuilder<List<ChatMessage>>(
               stream: ChatService.streamMessages(
-                currentUserId: user.uid,
+                currentUserId: effectiveUid,
                 partnerId: widget.partnerId,
               ),
               builder: (context, snapshot) {
