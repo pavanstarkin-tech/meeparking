@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/chat_service.dart';
+import '../../core/services/firebase_rtdb_service.dart';
 import '../../shared/models/chat_message.dart';
 import '../../shared/providers/app_providers.dart';
 import 'call_screen.dart';
@@ -11,13 +12,19 @@ class ChatScreen extends ConsumerStatefulWidget {
   final String partnerName;
   final String partnerPhotoUrl;
   final String spaceTitle;
+  final String? phone;
+  final String? vehicleInfo;
+  final String? partnerRole;
 
   const ChatScreen({
     super.key,
     required this.partnerId,
     required this.partnerName,
-    required this.partnerPhotoUrl,
-    required this.spaceTitle,
+    this.partnerPhotoUrl = '',
+    this.spaceTitle = '',
+    this.phone,
+    this.vehicleInfo,
+    this.partnerRole,
   });
 
   @override
@@ -26,6 +33,49 @@ class ChatScreen extends ConsumerStatefulWidget {
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TextEditingController _inputController = TextEditingController();
+  late String _resolvedName;
+  late String _resolvedPhoto;
+  late String _resolvedPhone;
+  late String _resolvedSubtitle;
+  late String _resolvedRole;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolvedName = widget.partnerName;
+    _resolvedPhoto = widget.partnerPhotoUrl;
+    _resolvedPhone = widget.phone ?? '';
+    _resolvedSubtitle = widget.vehicleInfo?.isNotEmpty == true
+        ? '${widget.spaceTitle} • ${widget.vehicleInfo}'
+        : widget.spaceTitle;
+    _resolvedRole = widget.partnerRole ?? 'Customer (Seeker)';
+
+    _fetchPartnerProfile();
+  }
+
+  Future<void> _fetchPartnerProfile() async {
+    if (widget.partnerId.isEmpty) return;
+
+    try {
+      final profile = await FirebaseRtdbService.getUserProfile(widget.partnerId);
+      if (profile != null && mounted) {
+        setState(() {
+          final pName = (profile['name'] ?? '').toString().trim();
+          if (pName.isNotEmpty && (_resolvedName.isEmpty || _resolvedName.startsWith('Customer (') || _resolvedName.startsWith('Driver ('))) {
+            _resolvedName = pName;
+          }
+          final pPhoto = (profile['photoUrl'] ?? '').toString().trim();
+          if (pPhoto.isNotEmpty) {
+            _resolvedPhoto = pPhoto;
+          }
+          final pPhone = (profile['phone'] ?? '').toString().trim();
+          if (pPhone.isNotEmpty) {
+            _resolvedPhone = pPhone;
+          }
+        });
+      }
+    } catch (_) {}
+  }
 
   void _sendMessage() async {
     final text = _inputController.text.trim();
@@ -46,8 +96,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => CallScreen(
-          partnerName: widget.partnerName,
-          partnerPhotoUrl: widget.partnerPhotoUrl,
+          partnerId: widget.partnerId,
+          partnerName: _resolvedName,
+          partnerPhotoUrl: _resolvedPhoto,
+          partnerRole: _resolvedRole,
+          subtitle: _resolvedSubtitle,
+          phone: _resolvedPhone,
         ),
       ),
     );
@@ -71,14 +125,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             CircleAvatar(
               radius: 18,
               backgroundColor: const Color(0xFF7C3AED),
-              backgroundImage: widget.partnerPhotoUrl.isNotEmpty
-                  ? NetworkImage(widget.partnerPhotoUrl)
+              backgroundImage: _resolvedPhoto.isNotEmpty
+                  ? NetworkImage(_resolvedPhoto)
                   : null,
-              child: widget.partnerPhotoUrl.isEmpty
+              child: _resolvedPhoto.isEmpty
                   ? Text(
-                      widget.partnerName.isNotEmpty
-                          ? widget.partnerName.trim().substring(0, 1).toUpperCase()
-                          : 'P',
+                      _resolvedName.isNotEmpty
+                          ? _resolvedName.trim().substring(0, 1).toUpperCase()
+                          : 'U',
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -93,19 +147,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.partnerName,
+                    _resolvedName,
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimaryLight,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    widget.spaceTitle,
+                    _resolvedPhone.isNotEmpty
+                        ? '$_resolvedSubtitle • $_resolvedPhone'
+                        : _resolvedSubtitle,
                     style: const TextStyle(
                       fontSize: 11,
                       color: AppColors.textSecondaryLight,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),

@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/agora_service.dart';
+import '../../core/services/firebase_rtdb_service.dart';
 
 class CallScreen extends StatefulWidget {
+  final String? partnerId;
   final String partnerName;
   final String partnerPhotoUrl;
   final String partnerRole; // 'Space Owner' | 'Customer (Seeker)'
@@ -13,6 +15,7 @@ class CallScreen extends StatefulWidget {
 
   const CallScreen({
     super.key,
+    this.partnerId,
     required this.partnerName,
     this.partnerPhotoUrl = '',
     this.partnerRole = 'Space Owner',
@@ -33,10 +36,16 @@ class _CallScreenState extends State<CallScreen>
   int _callSeconds = 0;
   Timer? _timer;
   late AnimationController _pulseController;
+  late String _resolvedName;
+  late String _resolvedPhoto;
+  late String _resolvedPhone;
 
   @override
   void initState() {
     super.initState();
+    _resolvedName = widget.partnerName;
+    _resolvedPhoto = widget.partnerPhotoUrl;
+    _resolvedPhone = widget.phone;
 
     _pulseController = AnimationController(
       vsync: this,
@@ -44,6 +53,32 @@ class _CallScreenState extends State<CallScreen>
     )..repeat(reverse: true);
 
     _initAgoraAudioCall();
+    _fetchProfileIfAvailable();
+  }
+
+  Future<void> _fetchProfileIfAvailable() async {
+    final id = widget.partnerId;
+    if (id == null || id.isEmpty) return;
+
+    try {
+      final profile = await FirebaseRtdbService.getUserProfile(id);
+      if (profile != null && mounted) {
+        setState(() {
+          final pName = (profile['name'] ?? '').toString().trim();
+          if (pName.isNotEmpty && (_resolvedName.isEmpty || _resolvedName.startsWith('Customer (') || _resolvedName.startsWith('Driver (') || _resolvedName.startsWith('Space Owner ('))) {
+            _resolvedName = pName;
+          }
+          final pPhoto = (profile['photoUrl'] ?? '').toString().trim();
+          if (pPhoto.isNotEmpty) {
+            _resolvedPhoto = pPhoto;
+          }
+          final pPhone = (profile['phone'] ?? '').toString().trim();
+          if (pPhone.isNotEmpty) {
+            _resolvedPhone = pPhone;
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _initAgoraAudioCall() async {
@@ -101,9 +136,9 @@ class _CallScreenState extends State<CallScreen>
 
   @override
   Widget build(BuildContext context) {
-    final initial = widget.partnerName.isNotEmpty
-        ? widget.partnerName.trim().substring(0, 1).toUpperCase()
-        : 'P';
+    final initial = _resolvedName.isNotEmpty
+        ? _resolvedName.trim().substring(0, 1).toUpperCase()
+        : 'U';
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
@@ -174,9 +209,9 @@ class _CallScreenState extends State<CallScreen>
                                     ],
                                   ),
                                   child: ClipOval(
-                                    child: widget.partnerPhotoUrl.isNotEmpty
+                                    child: _resolvedPhoto.isNotEmpty
                                         ? Image.network(
-                                            widget.partnerPhotoUrl,
+                                            _resolvedPhoto,
                                             fit: BoxFit.cover,
                                             errorBuilder: (_, __, ___) => _buildInitialAvatar(initial),
                                           )
@@ -193,7 +228,7 @@ class _CallScreenState extends State<CallScreen>
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
                           child: Text(
-                            widget.partnerName,
+                            _resolvedName,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: Colors.white,
@@ -205,40 +240,75 @@ class _CallScreenState extends State<CallScreen>
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
 
-                        // Role Badge (e.g. Space Owner / Customer Seeker)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: Colors.white24),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                widget.partnerRole.contains('Owner') ? Icons.verified_user : Icons.directions_car,
-                                color: const Color(0xFFA78BFA),
-                                size: 13,
+                        // Role Badge & Phone Row
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          alignment: WrapAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: Colors.white24),
                               ),
-                              const SizedBox(width: 5),
-                              Text(
-                                widget.partnerRole,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    widget.partnerRole.contains('Owner') ? Icons.verified_user : Icons.directions_car,
+                                    color: const Color(0xFFA78BFA),
+                                    size: 13,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    widget.partnerRole,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (_resolvedPhone.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: Colors.white24),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.phone,
+                                      color: AppColors.greenSuccess,
+                                      size: 12,
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      _resolvedPhone,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
+                          ],
                         ),
 
                         // Subtitle Details (e.g. Space Address / Vehicle Model)
                         if (widget.subtitle.isNotEmpty) ...[
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 8),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 32),
                             child: Text(

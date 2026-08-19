@@ -19,6 +19,7 @@ import '../partner/become_partner_screen.dart';
 import '../partner/partner_dashboard_screen.dart';
 import '../partner/my_listings_screen.dart';
 import '../partner/earnings_screen.dart';
+import '../partner/partner_main_shell.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -1497,7 +1498,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           const PartnerDashboardScreen(),
           const MyListingsScreen(),
-          const MyBookingsScreen(),
+          const PartnerBookingsPage(),
           const EarningsScreen(),
           const ProfileScreen(),
         ],

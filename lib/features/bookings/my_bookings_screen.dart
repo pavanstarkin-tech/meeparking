@@ -596,7 +596,8 @@ class _MyBookingsScreenState extends ConsumerState<MyBookingsScreen> {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => CallScreen(
-                            partnerName: booking.spaceTitle,
+                            partnerId: booking.partnerId,
+                            partnerName: 'Space Owner (${booking.spaceTitle})',
                             partnerRole: 'Space Owner',
                             subtitle: booking.spaceAddress,
                           ),
@@ -623,8 +624,8 @@ class _MyBookingsScreenState extends ConsumerState<MyBookingsScreen> {
                           builder: (_) => ChatScreen(
                             partnerId: booking.partnerId,
                             partnerName: 'Space Owner (${booking.spaceTitle})',
-                            partnerPhotoUrl: '',
                             spaceTitle: booking.spaceTitle,
+                            partnerRole: 'Space Owner',
                           ),
                         ),
                       );

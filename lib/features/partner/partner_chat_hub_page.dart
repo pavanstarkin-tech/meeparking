@@ -123,8 +123,9 @@ class PartnerChatHubPage extends ConsumerWidget {
                         builder: (_) => ChatScreen(
                           partnerId: b.userId,
                           partnerName: 'Customer (${b.vehicleNumber})',
-                          partnerPhotoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
                           spaceTitle: b.spaceTitle,
+                          vehicleInfo: '${b.vehicleNumber} (${b.vehicleModel})',
+                          partnerRole: 'Customer (Seeker)',
                         ),
                       ),
                     );

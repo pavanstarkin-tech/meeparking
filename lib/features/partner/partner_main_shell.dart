@@ -9,10 +9,11 @@ import '../../shared/models/parking_space.dart';
 import '../../shared/models/user_profile.dart';
 import '../../shared/providers/app_providers.dart';
 import '../auth/login_screen.dart';
-import '../chat/chat_screen.dart';
 import '../home/home_screen.dart';
+import '../profile/profile_screen.dart';
 import 'earnings_screen.dart';
 import 'my_listings_screen.dart';
+import 'partner_booking_card.dart';
 import 'partner_dashboard_screen.dart';
 import 'partner_onboarding_wizard.dart';
 
@@ -33,7 +34,7 @@ class _PartnerMainShellState extends ConsumerState<PartnerMainShell> {
       const MyListingsScreen(),
       const PartnerBookingsPage(),
       const EarningsScreen(),
-      const PartnerProfilePage(),
+      const ProfileScreen(),
     ];
 
     return Scaffold(
@@ -137,127 +138,7 @@ class PartnerBookingsPage extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             itemCount: bookings.length,
             itemBuilder: (context, index) {
-              final booking = bookings[index];
-              Color statusColor = AppColors.primary;
-              if (booking.status == 'confirmed') statusColor = AppColors.greenSuccess;
-              if (booking.status == 'in-progress' || booking.status == 'upcoming') statusColor = AppColors.orangeWarning;
-              if (booking.status == 'completed') statusColor = Colors.blue;
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.grey.shade200),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          booking.id,
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 13),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            booking.status.toUpperCase(),
-                            style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 11),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    Row(
-                      children: [
-                        const CircleAvatar(
-                          radius: 20,
-                          backgroundColor: Color(0xFFF3E8FF),
-                          child: Icon(Icons.person, color: AppColors.primary),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              booking.vehicleNumber,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                            ),
-                            Text(
-                              'Type: ${booking.vehicleType.toUpperCase()}',
-                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondaryLight),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 24),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              booking.spaceTitle,
-                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                            ),
-                            Text(
-                              '${booking.bookingDate} • ${booking.timeSlot}',
-                              style: const TextStyle(fontSize: 11, color: Colors.grey),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          '₹${booking.totalAmount.toStringAsFixed(0)}',
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimaryLight),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => ChatScreen(
-                                partnerId: booking.userId,
-                                partnerName: 'Customer (${booking.vehicleNumber})',
-                                partnerPhotoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-                                spaceTitle: booking.spaceTitle,
-                              ),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.chat, size: 16, color: AppColors.primary),
-                        label: const Text('Chat with Customer', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.primary),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
+              return PartnerBookingCard(booking: bookings[index]);
             },
           );
         },

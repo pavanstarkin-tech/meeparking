@@ -1,114 +1,140 @@
-# 🅿️ Mee Parking – Smart Parking Marketplace
+# 🅿️ Mee Parking – Smart Parking Marketplace & Admin Ecosystem
 
-> **"Park Smart. Earn Smart."**
-> A complete, production-ready Flutter application for seamless parking space discovery, dynamic slot booking, EV charging station navigation, in-app face-to-face video calling, realtime chat, and partner space monetization.
-
-<img src="designui.png" alt="Mee Parking Design UI Reference" width="100%" />
+> **"Park Smart. Earn Smart. Manage Intelligently."**  
+> A complete, production-ready full-stack ecosystem featuring a **Flutter Mobile Application** for drivers & parking hosts, and a **React + Vite + TypeScript Web Admin Portal** connected to **Firebase Realtime Database** and **Mapbox GL 3D Vector Engine**.
 
 ---
 
-## 🌟 Key Features & Accomplishments (Summary of Work Done)
+## 📸 Platform Overview
 
-### 🎨 1. Pixel-Perfect UI Screens (15 Screens + Admin Spec)
-- **01 Splash Screen**: Animated dark purple gradient city skyline, glowing Mee Parking 'M' logo, purple sedan car illustration with floating 'P' badge, progress loader.
-- **02 Onboarding**: "Smart Parking Made Simple" page view slider, custom illustrations, indicator pills, Next & Skip buttons.
-- **Authentication Screens**:
-  - **Login Screen (`lib/features/auth/login_screen.dart`)**: Email & Password sign-in, Google Authentication button, Forgot Password recovery.
-  - **Sign Up Screen (`lib/features/auth/signup_screen.dart`)**: Full Name, Email, Password, and Vehicle Registration registration form.
-- **03 Home Screen**: User header, notification badge, location search, "Find Parking" & "EV Charging" feature cards, 4 quick pills (Offers, Favourites, Recent, Partner), popular locations carousel, user bottom navigation bar.
-- **04 Search Parking Screen**: Interactive map with purple price markers (`₹60`, `₹80`, `₹120`), horizontal filter chips (Nearby, EV Charging, Covered, CCTV), expandable bottom list card of spaces.
-- **05 Parking Details Screen**: Image carousel, rating (`4.6 (128)`), distance, amenity badges, pricing cards (hourly, daily, weekly, monthly), owner contact card (Chat & Face-to-Face Call), "Select Slot" CTA.
-- **06 Booking Screen**: Date selector pills (Mon 20 May - Thu 23 May), time slot grid, vehicle selector card (`DL 01 AB 1234`), price breakdown, "Continue to Payment" button.
-- **07 Booking Confirmed Screen**: Green checkmark success badge with glow, purple car graphic, summary card with ID `MEE12345678`, "View Booking" & "Go Home" options.
-- **08 Turn-by-Turn Navigation Screen**: Dark HUD map view, top direction banner ("120 m - Turn right"), route polyline, camera/mute controls, ETA HUD (`8 min`, `2.4 km`), Exit button.
-- **09 My Bookings Screen**: Segmented tabs (Upcoming, Completed, Cancelled), booking cards with status pills & direct "Navigate" button.
-- **10 Wallet Screen**: Wallet Balance Card (`₹1,250.00`) with 3D wallet vector & gold coins, "+ Add Money" modal popup with Razorpay payment flow, credit/debit transaction log.
-- **11 Become Partner Screen**: Hero banner illustration, garage & car graphic, benefits checklist with green checkmarks, "Get Started" onboarding form.
-- **12 Partner Dashboard Screen**: "Welcome back, Arun Kumar", 4 stats cards (Total Listings: 12, Today's Bookings: 15, Monthly Earnings: ₹12,450, Total Views: 1,245), recent bookings list, partner bottom nav bar.
-- **13 My Listings Screen**: Partner's space cards, available slots count ("18 Slots Available"), Active/Inactive status toggle switch, "+ Add Listing" button.
-- **14 Earnings Screen**: Total Earnings card (`₹12,450`), Daily/Weekly/Monthly filter toggle, `fl_chart` line graph, earnings breakdown (Parking Bookings vs EV Charging).
-- **15 Profile Screen**: User avatar, name ("Rohan Sharma"), phone ("+91 98765 43210"), Edit Profile CTA, Role Switcher toggle (User Mode vs Partner Mode), menu list & Logout.
+### 📱 1. Mobile Flutter Application (Drivers & Parking Hosts)
+<img src="designui.png" alt="Mee Parking Mobile Design UI Reference" width="100%" />
+
+### 💻 2. React + Vite Web Admin Portal (Management & 3D Radar)
+<img src="adminpanal.png" alt="Mee Parking Admin Panel Web Dashboard" width="100%" />
 
 ---
 
-### 📹 2. Face-to-Face Connection & Realtime Chat
-- **Face-to-Face Video/Audio Call HUD (`lib/features/chat/call_screen.dart`)**:
-  - Fullscreen caller video stream background with dark overlay gradient.
-  - Live call timer (`02:45`), caller metadata header.
-  - Floating self-camera Picture-in-Picture (PIP) window.
-  - Glassmorphic control bar: Mute Mic, Toggle Camera, Switch Front/Back Camera, and End Call red button.
-- **In-App Realtime Messaging (`lib/features/chat/chat_screen.dart`)**:
-  - Live driver-partner chat bubbles, timestamps, and top bar voice/video call triggers.
+## 🌟 Core Modules & Capabilities
+
+### 📱 1. Flutter Mobile Application (`lib/`)
+- **01 Splash & Onboarding**: Animated gradient skyline, Mee Parking logo animation, indicator sliders.
+- **02 Authentication & Profiles**: Email/Password login, vehicle registration, driver & partner profile toggle.
+- **03 Search & Map Navigation**: Interactive Mapbox pins (`₹40`, `₹60`, `₹80`), EV charger filters, distance calculations.
+- **04 Slot Booking & Reservation**: Dynamic date selector, time slot grid, prepaid wallet & Razorpay checkout, animated booking confirmation.
+- **05 Turn-by-Turn GPS HUD**: Route polyline, compass HUD, ETA and distance readout, live rerouting.
+- **06 Face-to-Face Video & Chat**: Full-screen video calling HUD (PiP camera, mute, switch camera) and driver-host realtime chat messaging.
+- **07 Partner Business Engine**: Onboarding wizard, parking lot capacity manager (`currentCars`, `currentBikes`), live revenue charts, and instant bank payout requests.
 
 ---
 
-### ⚙️ 3. Environment & Backend Deliverables
-- **Environment File ([.env](file:///.env))**:
-  - Configuration keys for Mapbox, Firebase, Razorpay, Cloudinary, Agora, and SMTP Email.
-- **Firebase Cloud Functions ([firebase/functions/index.js](file:///firebase/functions/index.js))**:
-  - Realtime Database trigger for atomic capacity counter updates (`currentCars`, `currentBikes`).
-  - Automated FCM push notifications and SMTP booking confirmation emails.
-- **Firebase Rules ([firebase/database.rules.json](file:///firebase/database.rules.json))**:
-  - Security rules & indexing on `ownerId`, `status`, `lat`, `lng`, `city`.
-- **React + Vite Admin Panel Specification ([admin.md](file:///admin.md))**:
-  - Full architecture blueprint for creating a separate web admin dashboard in React + Vite.
+### 💻 2. React + Vite Web Admin Dashboard (`admin-panel/`)
+- **📊 Executive KPI Analytics (`/`)**:
+  - Real-time Gross Revenue, Total Bookings, Active Parking Slots, Registered Drivers, and Verified Partners.
+  - Revenue & booking velocity Area Chart + Vehicle Category Donut Chart.
+  - Real-time incoming reservations activity stream.
+- **🗺️ Mapbox 3D Extruded Live Parking Radar (`/map`)**:
+  - True **3D Extruded Polygon Lots** (8m–32m height) & 3D city buildings.
+  - **Dynamic Green Pointer**: Active/opened listings turn into a glowing green pointer with an animated pulse ring.
+  - **Floating Hover & Inspect Card**: High-res photos, real-time availability gauge, hourly tariffs, and manager phone.
+  - **Direct Comms**: One-click **"Call Host"** (live voice call dialer) & **"Live Chat"** modal.
+  - 3D Isometric View & 360° Camera Orbit controls.
+- **🎟️ Master Bookings Directory (`/bookings`)**:
+  - Filterable reservations table with vehicle details, payment IDs, and pricing breakdown.
+  - **1-Click Cancellation & Wallet Refund**: Automatically marks status and refunds funds to customer's wallet.
+  - **Permanent Delete / Purge**: Admin override to permanently remove test/disputed records.
+- **👥 Drivers & Seekers Directory (`/users`)**:
+  - Registered vehicle badges, total bookings, and direct **Wallet Balance Adjustments (Credit/Debit)** with audit trail.
+  - 1-click **Suspend / Reactivate User Account**.
+- **🏢 Auto-Approved Partner Hub (`/partners`)**:
+  - Partner accounts are **auto-approved upon sign-up** so hosts can immediately configure their profile and submit listings.
+  - Host directory, bank account details, and direct links to review their submitted parking listings.
+- **🅿️ Parking Listings Review & Approval Gatekeeper (`/listings`)**:
+  - **Governance Workflow**: All new listings submitted by partners enter the **"Pending Review"** queue and remain hidden from public seekers until approved by an Admin.
+  - 1-click **"Approve Listing"** instantly pushes the space live to the public app and 3D map.
+  - **"Reject Listing"** with custom feedback reason.
+- **💰 Financial Disbursements & Payouts Ledger (`/payouts`)**:
+  - Transparent 15% platform commission ledger.
+  - 1-click **"Disburse Funds"** with automated reference code generation and partner wallet deduction.
+- **🎧 Support & Dispute Resolution (`/support`)**:
+  - Ticket management with 1-click **Customer Wallet Compensation Credit**.
+- **⚙️ Platform Diagnostics (`/settings`)**:
+  - Live Firebase RTDB connection status and platform commission rate configurator.
 
 ---
 
-## 🏗️ Technical Architecture & Directory Structure
+## 🏗️ Project Architecture & Directory Structure
 
 ```
 meeparking/
-├── .env                              # API Environment keys
-├── admin.md                          # React + Vite Web Admin specification blueprint
-├── designui.png                      # Pixel-perfect UI Reference image
-├── firebase/
-│   ├── database.rules.json           # Firebase Realtime Database Security Rules
-│   └── functions/index.js            # Node.js Cloud Functions for counters & emails
-├── lib/
+├── .env                              # Mapbox, Firebase, Razorpay & Agora API keys
+├── designui.png                      # Mobile App UI Design Sheet
+├── adminpanal.png                    # Web Admin Dashboard Preview
+│
+├── admin-panel/                      # React + Vite + TypeScript + Tailwind Admin Web App
+│   ├── src/
+│   │   ├── config/firebase.ts        # Live Firebase SDK initialization
+│   │   ├── services/firebaseService.ts # Realtime streaming & CRUD operations
+│   │   ├── types/index.ts            # TypeScript interfaces (Bookings, Spaces, Users, Payouts)
+│   │   ├── components/
+│   │   │   ├── layout/               # Sidebar, Header, AdminLayout
+│   │   │   └── common/               # StatCard, StatusBadge, Modal
+│   │   └── pages/
+│   │       ├── DashboardPage.tsx     # Executive Overview & Charts
+│   │       ├── LiveMapPage.tsx       # Mapbox GL 3D Plotted Parking Radar
+│   │       ├── BookingsPage.tsx      # Reservations & Instant Refund Manager
+│   │       ├── UsersPage.tsx         # Drivers Directory & Wallet Adjuster
+│   │       ├── PartnersPage.tsx      # Auto-Approved Host Hub
+│   │       ├── ListingsPage.tsx      # Space Review & Approval Pipeline
+│   │       ├── PayoutsPage.tsx       # Financial Ledger & Disbursements
+│   │       ├── SupportPage.tsx       # Customer Tickets & Wallet Compensation
+│   │       └── SettingsPage.tsx      # Platform Rules & System Diagnostics
+│   ├── package.json
+│   └── vite.config.ts
+│
+├── lib/                              # Flutter Mobile Application
 │   ├── main.dart                     # App entry point & Theme configuration
-│   ├── core/
-│   │   ├── config/env_config.dart    # Environment loader (.env reader)
-│   │   ├── constants/app_colors.dart # Theme palette & custom gradients
-│   │   └── services/                 # Parking, Booking, Wallet, & Chat services
-│   ├── shared/
-│   │   ├── models/                   # ParkingSpace, Booking, UserProfile, WalletTransaction, ChatMessage
-│   │   ├── providers/app_providers.dart # Riverpod state providers
-│   │   └── widgets/mee_parking_illustrations.dart # Vector drawings (Car, Wallet, Coins)
+│   ├── core/services/                # Firebase RTDB, Mapbox & Wallet services
+│   ├── shared/                       # State providers, data models & illustrations
 │   └── features/
-│       ├── splash/                   # Screen 01
-│       ├── onboarding/               # Screen 02
-│       ├── home/                     # Screen 03
-│       ├── search/                   # Screen 04
-│       ├── parking/                  # Screen 05
-│       ├── booking/                  # Screens 06 & 07
-│       ├── navigation/               # Screen 08
-│       ├── bookings/                 # Screen 09
-│       ├── wallet/                   # Screen 10
-│       ├── partner/                  # Screens 11, 12, 13, 14
-│       ├── profile/                  # Screen 15
-│       └── chat/                     # Realtime Chat & Face-to-Face Video Call screens
+│       ├── splash/                   # Splash & branding screen
+│       ├── home/                     # Explore & driver dashboard
+│       ├── search/                   # Map search & filter chips
+│       ├── booking/                  # Slot selection & payment checkout
+│       ├── navigation/               # Turn-by-turn navigation HUD
+│       ├── bookings/                 # Active, completed & cancelled trips
+│       ├── wallet/                   # Digital wallet & Razorpay top-up
+│       ├── partner/                  # Host dashboard, capacity manager & earnings
+│       └── chat/                     # Realtime messaging & face-to-face video calling
+│
+└── firebase/
+    ├── database.rules.json           # Realtime Database Security & Indexing Rules
+    └── functions/index.js            # Cloud Functions for counters & push notifications
 ```
 
 ---
 
-## ⚡ How to Run & Verify
+## ⚡ How to Run & Develop
 
-### 1. Run Flutter Analyze
-Ensure zero errors or static analysis warnings:
+### 1. Run the Web Admin Panel (React + Vite)
 ```bash
-flutter analyze
+cd admin-panel
+npm install
+npm run dev
 ```
+Open **[http://localhost:5173/](http://localhost:5173/)** in your browser.
 
-### 2. Launch Mobile Application
-Run on connected Android/iOS emulator or physical device:
+---
+
+### 2. Run the Mobile Application (Flutter)
 ```bash
+flutter pub get
 flutter run
 ```
 
 ---
 
 ## ✅ Quality & Verification Status
-- **Flutter Analyze Status**: `No issues found!` (0 errors).
-- **All 15 UI Screens**: Pixel-perfect match with `designui.png`.
-- **End-to-End Interconnection**: Fully connected navigation, role switching, wallet updates, booking creation, turn-by-turn navigation, and face-to-face video calling.
+- **Flutter Mobile App**: `flutter analyze` passing with 0 errors.
+- **Web Admin Panel**: `npm run build` passing with 0 TypeScript/bundling errors.
+- **Database Synchronization**: Fully connected to live Firebase Realtime Database (`https://mee-parking-default-rtdb.firebaseio.com`).

@@ -5,9 +5,8 @@ import '../../core/services/firebase_rtdb_service.dart';
 import '../../shared/models/booking.dart';
 import '../../shared/models/parking_space.dart';
 import '../../shared/providers/app_providers.dart';
-import '../chat/call_screen.dart';
-import '../chat/chat_screen.dart';
 import 'my_listings_screen.dart';
+import 'partner_booking_card.dart';
 
 class PartnerDashboardScreen extends ConsumerWidget {
   const PartnerDashboardScreen({super.key});
@@ -127,10 +126,7 @@ class PartnerDashboardScreen extends ConsumerWidget {
                         ),
                       ),
                     ] else ...[
-                      ...bookings.take(5).map((b) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12.0),
-                            child: _buildBookingItem(context, b),
-                          )),
+                      ...bookings.take(5).map((b) => PartnerBookingCard(booking: b)),
                     ],
                   ],
                 ),
@@ -181,127 +177,6 @@ class PartnerDashboardScreen extends ConsumerWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildBookingItem(
-    BuildContext context,
-    Booking booking,
-  ) {
-    final isUpcoming = booking.computedStatus == 'upcoming';
-    final statusColor = isUpcoming
-        ? AppColors.greenSuccess
-        : (booking.computedStatus == 'completed' ? Colors.blue : AppColors.orangeWarning);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    booking.vehicleNumber,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    booking.spaceTitle,
-                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondaryLight),
-                  ),
-                  Text(
-                    '${booking.bookingDate}, ${booking.timeSlot}',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '₹${booking.totalAmount.toInt()}',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      booking.computedStatus.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: statusColor,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => CallScreen(
-                          partnerName: 'Driver (${booking.vehicleNumber})',
-                          partnerRole: 'Customer (Seeker)',
-                          subtitle: '${booking.vehicleModel} • ${booking.vehicleType.toUpperCase()} • ${booking.timeSlot}',
-                        ),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.phone_outlined, size: 15, color: AppColors.primary),
-                  label: const Text('Call Driver', style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.bold)),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.primary),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ChatScreen(
-                          partnerId: booking.userId,
-                          partnerName: 'Driver (${booking.vehicleNumber})',
-                          partnerPhotoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-                          spaceTitle: booking.spaceTitle,
-                        ),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.chat_bubble_outline, size: 15, color: AppColors.primary),
-                  label: const Text('Chat Driver', style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.bold)),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.primary),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }

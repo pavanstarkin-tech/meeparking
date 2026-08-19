@@ -60,8 +60,8 @@ class FirebaseRtdbService {
     return _db!;
   }
 
-  /// Realtime Stream of Parking Spaces
-  static Stream<List<ParkingSpace>> streamParkingSpaces() {
+  /// Realtime Stream of Parking Spaces (Public Seekers only see approved/active listings)
+  static Stream<List<ParkingSpace>> streamParkingSpaces({bool publicOnly = true}) {
     return db.ref('parkingSpaces').onValue.map((event) {
       final data = event.snapshot.value;
       if (data == null || data is! Map) return [];
@@ -69,7 +69,11 @@ class FirebaseRtdbService {
       data.forEach((key, value) {
         if (value is Map) {
           try {
-            spaces.add(ParkingSpace.fromMap(Map<String, dynamic>.from(value), key.toString()));
+            final s = ParkingSpace.fromMap(Map<String, dynamic>.from(value), key.toString());
+            // If publicOnly, only show approved and active spaces to seekers
+            if (!publicOnly || (s.isActive && (s.status == 'approved' || s.status == 'active' || s.status == null))) {
+              spaces.add(s);
+            }
           } catch (_) {}
         }
       });
@@ -77,9 +81,9 @@ class FirebaseRtdbService {
     });
   }
 
-  /// Stream parking spaces owned by specific partner
+  /// Stream parking spaces owned by specific partner (Partners see all their own spaces, including pending review)
   static Stream<List<ParkingSpace>> streamPartnerSpaces(String ownerId) {
-    return streamParkingSpaces().map((spaces) {
+    return streamParkingSpaces(publicOnly: false).map((spaces) {
       if (ownerId.isEmpty) return spaces;
       final owned = spaces.where((s) => s.ownerId == ownerId || s.ownerId == 'owner_1' || ownerId == 'owner_1').toList();
       if (owned.isNotEmpty) return owned;
@@ -448,9 +452,17 @@ class FirebaseRtdbService {
   static Future<Map<String, dynamic>?> getUserProfile(String userId) async {
     if (userId.isEmpty) return null;
     try {
-      final snap = await db.ref('users/$userId/profile').get();
+      final snap = await db.ref('users/$userId/profile').get().timeout(const Duration(seconds: 3));
       if (snap.value != null && snap.value is Map) {
         return Map<String, dynamic>.from(snap.value as Map);
+      }
+      final rootSnap = await db.ref('users/$userId').get().timeout(const Duration(seconds: 3));
+      if (rootSnap.value != null && rootSnap.value is Map) {
+        final data = Map<String, dynamic>.from(rootSnap.value as Map);
+        if (data.containsKey('profile') && data['profile'] is Map) {
+          return Map<String, dynamic>.from(data['profile'] as Map);
+        }
+        return data;
       }
     } catch (_) {}
     return null;
