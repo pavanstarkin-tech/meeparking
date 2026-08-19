@@ -816,12 +816,50 @@ class FirebaseRtdbService {
     }
   }
 
-  /// Stream all conversations for a user (Seeker or Partner)
+  /// Stream all conversations for a user (Seeker or Partner) with complete customer/host details
   static Stream<List<ChatConversation>> streamUserConversations(String userId, {bool isPartner = false}) {
     return db.ref('chats').onValue.asyncMap((event) async {
       final conversationsMap = <String, ChatConversation>{};
 
-      // 1. Read existing chats from /chats
+      // 1. Fetch Users Directory once to resolve customer/host real names, photos and phones
+      final usersDirectory = <String, Map<String, dynamic>>{};
+      try {
+        final usersSnap = await db.ref('users').get();
+        if (usersSnap.exists && usersSnap.value is Map) {
+          (usersSnap.value as Map).forEach((key, val) {
+            if (val is Map) {
+              final uMap = Map<String, dynamic>.from(val);
+              final profile = (uMap['profile'] is Map) ? Map<String, dynamic>.from(uMap['profile']) : uMap;
+              usersDirectory[key.toString()] = {
+                'name': (profile['name'] ?? uMap['name'] ?? '').toString().trim(),
+                'phone': (profile['phone'] ?? uMap['phone'] ?? '').toString().trim(),
+                'photoUrl': (profile['photoUrl'] ?? uMap['photoUrl'] ?? '').toString().trim(),
+                'email': (profile['email'] ?? uMap['email'] ?? '').toString().trim(),
+              };
+            }
+          });
+        }
+      } catch (_) {}
+
+      // Helper to resolve user details
+      Map<String, String> resolveUser(String uid, {String fallbackName = 'Customer User'}) {
+        final data = usersDirectory[uid];
+        if (data != null) {
+          final n = (data['name'] ?? '').toString().trim();
+          return {
+            'name': n.isNotEmpty ? n : fallbackName,
+            'phone': (data['phone'] ?? '').toString().trim(),
+            'photoUrl': (data['photoUrl'] ?? '').toString().trim(),
+          };
+        }
+        return {
+          'name': fallbackName,
+          'phone': '',
+          'photoUrl': '',
+        };
+      }
+
+      // 2. Read existing chats from /chats
       final data = event.snapshot.value;
       if (data != null && data is Map) {
         data.forEach((key, value) {
@@ -831,14 +869,31 @@ class FirebaseRtdbService {
               final chatId = key.toString();
               // Check if current user is part of this chat ID or participants list
               if (chatId.contains(userId) || (map['participants'] is List && (map['participants'] as List).contains(userId)) || userId.isEmpty) {
-                conversationsMap[chatId] = ChatConversation.fromMap(map, chatId);
+                final c = ChatConversation.fromMap(map, chatId);
+                final resolved = resolveUser(c.otherUserId, fallbackName: c.otherUserName);
+                conversationsMap[chatId] = ChatConversation(
+                  id: c.id,
+                  otherUserId: c.otherUserId,
+                  otherUserName: (resolved['name']?.isNotEmpty == true && resolved['name'] != 'User') ? resolved['name']! : c.otherUserName,
+                  otherUserPhoto: (resolved['photoUrl']?.isNotEmpty == true) ? resolved['photoUrl']! : c.otherUserPhoto,
+                  otherUserPhone: (resolved['phone']?.isNotEmpty == true) ? resolved['phone']! : c.otherUserPhone,
+                  otherUserRole: c.otherUserRole,
+                  spaceTitle: c.spaceTitle,
+                  spaceAddress: c.spaceAddress,
+                  vehicleInfo: c.vehicleInfo,
+                  lastMessage: c.lastMessage,
+                  lastMessageTime: c.lastMessageTime,
+                  lastSenderId: c.lastSenderId,
+                  unreadCount: c.unreadCount,
+                  bookingId: c.bookingId,
+                );
               }
             } catch (_) {}
           }
         });
       }
 
-      // 2. Also merge bookings to ensure all booked drivers/partners show up in conversation list
+      // 3. Also merge bookings to ensure all booked drivers/partners show up in conversation list
       try {
         final snap = await db.ref('bookings').get();
         if (snap.exists && snap.value is Map) {
@@ -855,19 +910,49 @@ class FirebaseRtdbService {
                   final ids = [userId, otherId]..sort();
                   final chatId = 'chat_${ids.join('_')}';
 
+                  final resolved = resolveUser(otherId, fallbackName: isPartner ? 'Driver Customer' : b.spaceTitle);
+                  final vehicleTag = [b.vehicleModel, b.vehicleNumber].where((s) => s.isNotEmpty && s != 'N/A').join(' • ');
+
                   if (!conversationsMap.containsKey(chatId)) {
                     conversationsMap[chatId] = ChatConversation(
                       id: chatId,
                       otherUserId: otherId,
-                      otherUserName: isPartner ? (b.vehicleModel.isNotEmpty ? b.vehicleModel : 'Driver Customer') : b.spaceTitle,
+                      otherUserName: isPartner
+                          ? (resolved['name']?.isNotEmpty == true && resolved['name'] != 'User' ? resolved['name']! : (b.vehicleModel.isNotEmpty ? b.vehicleModel : 'Driver Customer'))
+                          : b.spaceTitle,
+                      otherUserPhoto: resolved['photoUrl'] ?? '',
+                      otherUserPhone: resolved['phone'] ?? '',
                       otherUserRole: isPartner ? 'user' : 'partner',
                       spaceTitle: b.spaceTitle,
                       spaceAddress: b.spaceAddress,
-                      vehicleInfo: b.vehicleNumber,
+                      vehicleInfo: vehicleTag,
                       lastMessage: 'Booking confirmed • ${b.timeSlot}',
                       lastMessageTime: DateTime.tryParse(b.bookingDate) ?? DateTime.now(),
                       bookingId: b.id,
                     );
+                  } else {
+                    // Update existing with customer profile if name was generic
+                    final existing = conversationsMap[chatId]!;
+                    if (isPartner && (existing.otherUserName == 'Driver Customer' || existing.otherUserName == 'User' || existing.otherUserName == b.vehicleModel)) {
+                      if (resolved['name']?.isNotEmpty == true && resolved['name'] != 'User') {
+                        conversationsMap[chatId] = ChatConversation(
+                          id: existing.id,
+                          otherUserId: existing.otherUserId,
+                          otherUserName: resolved['name']!,
+                          otherUserPhoto: resolved['photoUrl']?.isNotEmpty == true ? resolved['photoUrl']! : existing.otherUserPhoto,
+                          otherUserPhone: resolved['phone']?.isNotEmpty == true ? resolved['phone']! : existing.otherUserPhone,
+                          otherUserRole: existing.otherUserRole,
+                          spaceTitle: existing.spaceTitle.isNotEmpty ? existing.spaceTitle : b.spaceTitle,
+                          spaceAddress: existing.spaceAddress.isNotEmpty ? existing.spaceAddress : b.spaceAddress,
+                          vehicleInfo: existing.vehicleInfo.isNotEmpty ? existing.vehicleInfo : vehicleTag,
+                          lastMessage: existing.lastMessage,
+                          lastMessageTime: existing.lastMessageTime,
+                          lastSenderId: existing.lastSenderId,
+                          unreadCount: existing.unreadCount,
+                          bookingId: existing.bookingId ?? b.id,
+                        );
+                      }
+                    }
                   }
                 }
               } catch (_) {}

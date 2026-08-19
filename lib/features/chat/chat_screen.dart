@@ -61,7 +61,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (profile != null && mounted) {
         setState(() {
           final pName = (profile['name'] ?? '').toString().trim();
-          if (pName.isNotEmpty && (_resolvedName.isEmpty || _resolvedName.startsWith('Customer (') || _resolvedName.startsWith('Driver ('))) {
+          if (pName.isNotEmpty) {
             _resolvedName = pName;
           }
           final pPhoto = (profile['photoUrl'] ?? '').toString().trim();

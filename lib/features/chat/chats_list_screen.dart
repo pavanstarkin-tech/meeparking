@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/chat_service.dart';
+import '../../core/services/firebase_rtdb_service.dart';
 import '../../shared/models/chat_conversation.dart';
 import '../../shared/providers/app_providers.dart';
 import 'chat_screen.dart';
@@ -27,22 +28,6 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  String _formatTime(DateTime dt) {
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inDays == 0) {
-      final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
-      final ampm = dt.hour >= 12 ? 'PM' : 'AM';
-      final min = dt.minute.toString().padLeft(2, '0');
-      return '$hour:$min $ampm';
-    }
-    if (diff.inDays == 1) return 'Yesterday';
-    return '${dt.day}/${dt.month}';
   }
 
   @override
@@ -140,7 +125,7 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                       onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
                       style: const TextStyle(fontSize: 13, color: AppColors.textPrimaryLight),
                       decoration: const InputDecoration(
-                        hintText: 'Search conversations or spots...',
+                        hintText: 'Search customer name, spot, or vehicle...',
                         hintStyle: TextStyle(color: AppColors.textSecondaryLight, fontSize: 13),
                         border: InputBorder.none,
                         isDense: true,
@@ -193,7 +178,10 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final chat = filtered[index];
-                    return _buildConversationCard(chat);
+                    return ConversationItemTile(
+                      chat: chat,
+                      isPartnerMode: widget.isPartnerMode,
+                    );
                   },
                 );
               },
@@ -204,19 +192,158 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
     );
   }
 
-  Widget _buildConversationCard(ChatConversation chat) {
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 76,
+              height: 76,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.08),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 38,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              widget.isPartnerMode ? 'No Customer Inquiries Yet' : 'No Conversations Yet',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimaryLight,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              widget.isPartnerMode
+                ? 'Incoming driver inquiries and customer booking questions will appear here.'
+                : 'Messages with parking hosts and space managers will appear here.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondaryLight,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ConversationItemTile extends StatefulWidget {
+  final ChatConversation chat;
+  final bool isPartnerMode;
+
+  const ConversationItemTile({
+    super.key,
+    required this.chat,
+    required this.isPartnerMode,
+  });
+
+  @override
+  State<ConversationItemTile> createState() => _ConversationItemTileState();
+}
+
+class _ConversationItemTileState extends State<ConversationItemTile> {
+  late String _displayName;
+  late String _displayPhoto;
+  late String _displayPhone;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayName = widget.chat.otherUserName;
+    _displayPhoto = widget.chat.otherUserPhoto;
+    _displayPhone = widget.chat.otherUserPhone;
+
+    _resolveUserProfile();
+  }
+
+  @override
+  void didUpdateWidget(covariant ConversationItemTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.chat.otherUserId != widget.chat.otherUserId ||
+        oldWidget.chat.otherUserName != widget.chat.otherUserName) {
+      _displayName = widget.chat.otherUserName;
+      _displayPhoto = widget.chat.otherUserPhoto;
+      _displayPhone = widget.chat.otherUserPhone;
+      _resolveUserProfile();
+    }
+  }
+
+  Future<void> _resolveUserProfile() async {
+    final uid = widget.chat.otherUserId.trim();
+    if (uid.isEmpty) return;
+
+    try {
+      final profile = await FirebaseRtdbService.getUserProfile(uid);
+      if (profile != null && mounted) {
+        setState(() {
+          final pName = (profile['name'] ?? '').toString().trim();
+          if (pName.isNotEmpty && pName != 'User') {
+            _displayName = pName;
+          }
+          final pPhoto = (profile['photoUrl'] ?? '').toString().trim();
+          if (pPhoto.isNotEmpty) {
+            _displayPhoto = pPhoto;
+          }
+          final pPhone = (profile['phone'] ?? '').toString().trim();
+          if (pPhone.isNotEmpty) {
+            _displayPhone = pPhone;
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  String _formatTime(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays == 0) {
+      final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+      final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+      final min = dt.minute.toString().padLeft(2, '0');
+      return '$hour:$min $ampm';
+    }
+    if (diff.inDays == 1) return 'Yesterday';
+    return '${dt.day}/${dt.month}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chat = widget.chat;
+
+    // Subtitle formatting: Space Title + Vehicle Model / Number
+    final spotAndVehicle = [
+      chat.spaceTitle,
+      if (chat.vehicleInfo.isNotEmpty && chat.vehicleInfo != 'N/A') chat.vehicleInfo,
+    ].where((s) => s.isNotEmpty).join(' • ');
+
     return InkWell(
       onTap: () {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => ChatScreen(
               partnerId: chat.otherUserId,
-              partnerName: chat.otherUserName,
-              partnerPhotoUrl: chat.otherUserPhoto,
+              partnerName: _displayName,
+              partnerPhotoUrl: _displayPhoto,
               spaceTitle: chat.spaceTitle,
-              phone: chat.otherUserPhone,
+              phone: _displayPhone,
               vehicleInfo: chat.vehicleInfo,
-              partnerRole: chat.otherUserRole,
+              partnerRole: widget.isPartnerMode ? 'Customer (Seeker)' : 'Parking Space Host',
             ),
           ),
         );
@@ -261,16 +388,16 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                       ),
                     ],
                   ),
-                  child: chat.otherUserPhoto.isNotEmpty
+                  child: _displayPhoto.isNotEmpty
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(16),
-                          child: Image.network(chat.otherUserPhoto, fit: BoxFit.cover),
+                          child: Image.network(_displayPhoto, fit: BoxFit.cover),
                         )
                       : Center(
                           child: Text(
-                            chat.otherUserName.isNotEmpty
-                                ? chat.otherUserName.substring(0, 1).toUpperCase()
-                                : 'P',
+                            _displayName.isNotEmpty
+                                ? _displayName.substring(0, 1).toUpperCase()
+                                : 'U',
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
@@ -309,7 +436,7 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                           children: [
                             Flexible(
                               child: Text(
-                                chat.otherUserName,
+                                _displayName,
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w800,
@@ -353,16 +480,14 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                   const SizedBox(height: 3),
 
                   // Space & Vehicle Tag
-                  if (chat.spaceTitle.isNotEmpty || chat.vehicleInfo.isNotEmpty)
+                  if (spotAndVehicle.isNotEmpty)
                     Row(
                       children: [
                         const Icon(Icons.location_on_outlined, size: 12, color: AppColors.textSecondaryLight),
                         const SizedBox(width: 3),
                         Expanded(
                           child: Text(
-                            chat.vehicleInfo.isNotEmpty
-                                ? '${chat.spaceTitle} • ${chat.vehicleInfo}'
-                                : chat.spaceTitle,
+                            spotAndVehicle,
                             style: const TextStyle(
                               fontSize: 11,
                               color: AppColors.textSecondaryLight,
@@ -419,11 +544,11 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => CallScreen(
-                      partnerName: chat.otherUserName,
-                      partnerPhotoUrl: chat.otherUserPhoto,
-                      partnerRole: chat.otherUserRole,
-                      subtitle: chat.spaceTitle,
-                      phone: chat.otherUserPhone,
+                      partnerName: _displayName,
+                      partnerPhotoUrl: _displayPhoto,
+                      partnerRole: widget.isPartnerMode ? 'Customer (Seeker)' : 'Space Owner',
+                      subtitle: spotAndVehicle,
+                      phone: _displayPhone,
                     ),
                   ),
                 );
@@ -435,53 +560,6 @@ class _ChatsListScreenState extends ConsumerState<ChatsListScreen> {
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.phone_rounded, color: Color(0xFF10B981), size: 16),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 76,
-              height: 76,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.08),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.chat_bubble_outline_rounded,
-                size: 38,
-                color: AppColors.primary,
-              ),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              widget.isPartnerMode ? 'No Customer Inquiries Yet' : 'No Conversations Yet',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimaryLight,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              widget.isPartnerMode
-                ? 'Incoming driver inquiries and customer booking questions will appear here.'
-                : 'Messages with parking hosts and space managers will appear here.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondaryLight,
-                height: 1.4,
               ),
             ),
           ],
