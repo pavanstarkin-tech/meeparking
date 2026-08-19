@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "705882453832",
+    "firebase_url": "https://mee-parking-default-rtdb.firebaseio.com",
+    "project_id": "mee-parking",
+    "storage_bucket": "mee-parking.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:705882453832:android:89c302e8278ecefa64e57d",
+        "android_client_info": {
+          "package_name": "com.meeparking.com"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "705882453832-hetbpbltedbh5j8nc61p2purfe05inp4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyByvvqOfHfCb_dS6J4_7QtxnZBGrgcqRms"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "705882453832-hetbpbltedbh5j8nc61p2purfe05inp4.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
