@@ -10,12 +10,8 @@
 .history
 .svn/
 .swiftpm/
-# Environment & Secrets
-.env
-.env.*
-!.env.example
 *.log
-scripts/create_repo.ps1
+scripts/set_private.ps1
 
 migrate_working_dir/
 
