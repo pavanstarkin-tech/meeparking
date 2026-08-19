@@ -9,6 +9,7 @@ import '../../shared/models/wallet_transaction.dart';
 import '../../shared/models/chat_message.dart';
 import '../../shared/models/user_profile.dart';
 import '../../shared/models/partner_payout_record.dart';
+import '../../shared/models/chat_conversation.dart';
 
 class FirebaseRtdbService {
   static FirebaseDatabase? _db;
@@ -71,7 +72,7 @@ class FirebaseRtdbService {
           try {
             final s = ParkingSpace.fromMap(Map<String, dynamic>.from(value), key.toString());
             // If publicOnly, only show approved and active spaces to seekers
-            if (!publicOnly || (s.isActive && (s.status == 'approved' || s.status == 'active' || s.status == null))) {
+            if (!publicOnly || (s.isActive && (s.status == 'approved' || s.status == 'active' || s.status.isEmpty))) {
               spaces.add(s);
             }
           } catch (_) {}
@@ -426,11 +427,24 @@ class FirebaseRtdbService {
     } catch (_) {}
   }
 
-  /// Send chat message in Realtime DB
-  static Future<void> sendMessage(String chatId, ChatMessage message) async {
+  /// Send chat message in Realtime DB and update conversation header
+  static Future<void> sendMessage(String chatId, ChatMessage message, {Map<String, dynamic>? conversationMeta}) async {
     try {
-      final ref = db.ref('chats/$chatId/messages').push();
-      await ref.set(message.toMap());
+      final msgKey = message.id.isNotEmpty ? message.id : (db.ref('chats/$chatId/messages').push().key ?? DateTime.now().millisecondsSinceEpoch.toString());
+      await db.ref('chats/$chatId/messages/$msgKey').set(message.toMap());
+
+      final updates = <String, dynamic>{
+        'id': chatId,
+        'lastMessage': message.text,
+        'lastMessageTime': message.timestamp.toIso8601String(),
+        'lastSenderId': message.senderId,
+      };
+
+      if (conversationMeta != null) {
+        updates.addAll(conversationMeta);
+      }
+
+      await db.ref('chats/$chatId').update(updates);
     } catch (_) {}
   }
 
@@ -802,10 +816,77 @@ class FirebaseRtdbService {
     }
   }
 
+  /// Stream all conversations for a user (Seeker or Partner)
+  static Stream<List<ChatConversation>> streamUserConversations(String userId, {bool isPartner = false}) {
+    return db.ref('chats').onValue.asyncMap((event) async {
+      final conversationsMap = <String, ChatConversation>{};
+
+      // 1. Read existing chats from /chats
+      final data = event.snapshot.value;
+      if (data != null && data is Map) {
+        data.forEach((key, value) {
+          if (value is Map) {
+            try {
+              final map = Map<String, dynamic>.from(value);
+              final chatId = key.toString();
+              // Check if current user is part of this chat ID or participants list
+              if (chatId.contains(userId) || (map['participants'] is List && (map['participants'] as List).contains(userId)) || userId.isEmpty) {
+                conversationsMap[chatId] = ChatConversation.fromMap(map, chatId);
+              }
+            } catch (_) {}
+          }
+        });
+      }
+
+      // 2. Also merge bookings to ensure all booked drivers/partners show up in conversation list
+      try {
+        final snap = await db.ref('bookings').get();
+        if (snap.exists && snap.value is Map) {
+          (snap.value as Map).forEach((key, value) {
+            if (value is Map) {
+              try {
+                final b = Booking.fromMap(Map<String, dynamic>.from(value), key.toString());
+                final shouldInclude = isPartner
+                    ? (b.partnerId == userId || userId.isEmpty || b.partnerId == 'partner_01')
+                    : (b.userId == userId || userId.isEmpty || b.userId == 'user_auth_01');
+
+                if (shouldInclude) {
+                  final otherId = isPartner ? b.userId : b.partnerId;
+                  final ids = [userId, otherId]..sort();
+                  final chatId = 'chat_${ids.join('_')}';
+
+                  if (!conversationsMap.containsKey(chatId)) {
+                    conversationsMap[chatId] = ChatConversation(
+                      id: chatId,
+                      otherUserId: otherId,
+                      otherUserName: isPartner ? (b.vehicleModel.isNotEmpty ? b.vehicleModel : 'Driver Customer') : b.spaceTitle,
+                      otherUserRole: isPartner ? 'user' : 'partner',
+                      spaceTitle: b.spaceTitle,
+                      spaceAddress: b.spaceAddress,
+                      vehicleInfo: b.vehicleNumber,
+                      lastMessage: 'Booking confirmed • ${b.timeSlot}',
+                      lastMessageTime: DateTime.tryParse(b.bookingDate) ?? DateTime.now(),
+                      bookingId: b.id,
+                    );
+                  }
+                }
+              } catch (_) {}
+            }
+          });
+        }
+      } catch (_) {}
+
+      final list = conversationsMap.values.toList();
+      list.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+      return list;
+    });
+  }
+
   /// Seed initial database data if empty
   static Future<void> seedInitialDataIfEmpty() async {
     // No hardcoded fake data seeding - database uses real user submissions
   }
 }
+
 
 

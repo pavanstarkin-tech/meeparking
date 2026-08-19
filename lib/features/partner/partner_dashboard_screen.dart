@@ -7,6 +7,7 @@ import '../../shared/models/parking_space.dart';
 import '../../shared/providers/app_providers.dart';
 import 'my_listings_screen.dart';
 import 'partner_booking_card.dart';
+import '../chat/chats_list_screen.dart';
 
 class PartnerDashboardScreen extends ConsumerWidget {
   const PartnerDashboardScreen({super.key});
@@ -38,26 +39,73 @@ class PartnerDashboardScreen extends ConsumerWidget {
                   children: [
                     // User Header Row
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        CircleAvatar(
-                          radius: 22,
-                          backgroundColor: const Color(0xFFF3E8FF),
-                          backgroundImage: user.photoUrl.isNotEmpty ? NetworkImage(user.photoUrl) : null,
-                          child: user.photoUrl.isEmpty ? const Icon(Icons.person, size: 24, color: AppColors.primary) : null,
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        Row(
                           children: [
-                            Text(
-                              'Welcome back,',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                            CircleAvatar(
+                              radius: 22,
+                              backgroundColor: const Color(0xFFF3E8FF),
+                              backgroundImage: user.photoUrl.isNotEmpty ? NetworkImage(user.photoUrl) : null,
+                              child: user.photoUrl.isEmpty ? const Icon(Icons.person, size: 24, color: AppColors.primary) : null,
                             ),
-                            Text(
-                              user.name.isNotEmpty ? user.name : 'Partner User',
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Welcome back,',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                ),
+                                Text(
+                                  user.name.isNotEmpty ? user.name : 'Partner User',
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                              ],
                             ),
                           ],
+                        ),
+
+                        // Direct Customer Chats Button
+                        InkWell(
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const ChatsListScreen(isPartnerMode: true),
+                              ),
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.chat_bubble_outline_rounded, color: AppColors.primary, size: 18),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Chats',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ],
                     ),

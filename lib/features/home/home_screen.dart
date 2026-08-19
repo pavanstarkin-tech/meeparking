@@ -20,6 +20,7 @@ import '../partner/partner_dashboard_screen.dart';
 import '../partner/my_listings_screen.dart';
 import '../partner/earnings_screen.dart';
 import '../partner/partner_main_shell.dart';
+import '../chat/chats_list_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -625,6 +626,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ],
                   ),
                 ),
+                // Direct Chat Messages Button
+                GestureDetector(
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ChatsListScreen(isPartnerMode: false),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      color: AppColors.textPrimaryLight,
+                      size: 22,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+
                 // Notification Bell Badge
                 GestureDetector(
                   onTap: () => _showNotificationsSheet(context),
