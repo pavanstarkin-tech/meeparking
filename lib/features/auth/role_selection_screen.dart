@@ -22,119 +22,76 @@ class RoleSelectionScreen extends ConsumerWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: Stack(
-        children: [
-          // Top Right Ambient Gradient Orb
-          Positioned(
-            top: -80,
-            right: -60,
-            child: Container(
-              width: 280,
-              height: 280,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFF7C3AED).withOpacity(0.12),
-                    const Color(0xFF6B2D9B).withOpacity(0.02),
-                    Colors.transparent,
-                  ],
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: Row(
+              children: [
+                // Card 1: Parking Seeker -> Goes to Seeker Profile setup
+                Expanded(
+                  child: _buildGridRoleCard(
+                    context: context,
+                    ref: ref,
+                    title: 'Parking Seeker',
+                    subtitle: 'Find & Book Spot',
+                    badgeText: 'PARK SMART',
+                    badgeColor: AppColors.greenSuccess,
+                    icon: Icons.directions_car_filled_outlined,
+                    cardBg: const Color(0xFFF0FDF4),
+                    borderColor: AppColors.greenSuccess.withOpacity(0.4),
+                    iconBg: Colors.white,
+                    iconColor: AppColors.greenSuccess,
+                    onTap: () {
+                      ref.read(currentRoleProvider.notifier).state = 'user';
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const RoleDetailsScreen(role: 'user'),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
+                const SizedBox(width: 14),
+
+                // Card 2: Parking Partner -> Directs directly to Partner Onboarding Wizard!
+                Expanded(
+                  child: _buildGridRoleCard(
+                    context: context,
+                    ref: ref,
+                    title: 'Parking Partner',
+                    subtitle: 'List Space & Earn',
+                    badgeText: 'EARN DAILY',
+                    badgeColor: AppColors.primary,
+                    icon: Icons.storefront_outlined,
+                    cardBg: const Color(0xFFFBF7FF),
+                    borderColor: AppColors.primary.withOpacity(0.4),
+                    iconBg: Colors.white,
+                    iconColor: AppColors.primary,
+                    onTap: () async {
+                      ref.read(currentRoleProvider.notifier).state = 'partner';
+                      final user = AuthService.currentUser;
+                      if (user != null) {
+                        await FirebaseRtdbService.updateUserProfile(user.uid, {
+                          'role': 'partner',
+                          'email': user.email ?? '',
+                          'uid': user.uid,
+                        });
+                      }
+                      if (context.mounted) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const PartnerOnboardingWizard(),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
-
-          // Bottom Left Ambient Gradient Orb
-          Positioned(
-            bottom: -60,
-            left: -60,
-            child: Container(
-              width: 240,
-              height: 240,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFF8B3DCC).withOpacity(0.10),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          SafeArea(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: Row(
-                  children: [
-                    // Card 1: Parking Seeker -> Goes to Seeker Profile setup
-                    Expanded(
-                      child: _buildGridRoleCard(
-                        context: context,
-                        ref: ref,
-                        title: 'Parking Seeker',
-                        subtitle: 'Find & Book Spot',
-                        badgeText: 'PARK SMART',
-                        badgeColor: AppColors.greenSuccess,
-                        icon: Icons.directions_car_filled_outlined,
-                        cardBg: const Color(0xFFF0FDF4),
-                        borderColor: AppColors.greenSuccess.withOpacity(0.4),
-                        iconBg: Colors.white,
-                        iconColor: AppColors.greenSuccess,
-                        onTap: () {
-                          ref.read(currentRoleProvider.notifier).state = 'user';
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const RoleDetailsScreen(role: 'user'),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-
-                    // Card 2: Parking Partner -> Directs directly to Partner Onboarding Wizard!
-                    Expanded(
-                      child: _buildGridRoleCard(
-                        context: context,
-                        ref: ref,
-                        title: 'Parking Partner',
-                        subtitle: 'List Space & Earn',
-                        badgeText: 'EARN DAILY',
-                        badgeColor: AppColors.primary,
-                        icon: Icons.storefront_outlined,
-                        cardBg: const Color(0xFFFBF7FF),
-                        borderColor: AppColors.primary.withOpacity(0.4),
-                        iconBg: Colors.white,
-                        iconColor: AppColors.primary,
-                        onTap: () async {
-                          ref.read(currentRoleProvider.notifier).state = 'partner';
-                          final user = AuthService.currentUser;
-                          if (user != null) {
-                            await FirebaseRtdbService.updateUserProfile(user.uid, {
-                              'role': 'partner',
-                              'email': user.email ?? '',
-                              'uid': user.uid,
-                            });
-                          }
-                          if (context.mounted) {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const PartnerOnboardingWizard(),
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

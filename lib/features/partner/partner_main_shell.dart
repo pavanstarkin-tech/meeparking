@@ -9,7 +9,6 @@ import '../../shared/models/parking_space.dart';
 import '../../shared/models/user_profile.dart';
 import '../../shared/providers/app_providers.dart';
 import '../auth/login_screen.dart';
-import '../home/home_screen.dart';
 import '../profile/profile_screen.dart';
 import 'earnings_screen.dart';
 import 'my_listings_screen.dart';
@@ -301,18 +300,6 @@ class _PartnerProfilePageState extends ConsumerState<PartnerProfilePage> {
               onTap: () {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Vehicles configuration updated.')),
-                );
-              },
-            ),
-            _buildProfileTile(
-              icon: Icons.swap_horiz,
-              title: 'Switch to User Mode (Seeker)',
-              subtitle: 'Search & reserve parking as a customer',
-              onTap: () {
-                ref.read(currentRoleProvider.notifier).state = 'user';
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const HomeScreen()),
-                  (route) => false,
                 );
               },
             ),

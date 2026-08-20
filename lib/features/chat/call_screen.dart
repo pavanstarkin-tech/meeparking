@@ -28,29 +28,20 @@ class CallScreen extends StatefulWidget {
   State<CallScreen> createState() => _CallScreenState();
 }
 
-class _CallScreenState extends State<CallScreen>
-    with SingleTickerProviderStateMixin {
+class _CallScreenState extends State<CallScreen> {
   bool _isMuted = false;
   bool _isSpeakerOn = true;
   bool _isCallConnected = false;
   int _callSeconds = 0;
   Timer? _timer;
-  late AnimationController _pulseController;
   late String _resolvedName;
   late String _resolvedPhoto;
-  late String _resolvedPhone;
 
   @override
   void initState() {
     super.initState();
     _resolvedName = widget.partnerName;
     _resolvedPhoto = widget.partnerPhotoUrl;
-    _resolvedPhone = widget.phone;
-
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
 
     _initAgoraAudioCall();
     _fetchProfileIfAvailable();
@@ -71,10 +62,6 @@ class _CallScreenState extends State<CallScreen>
           final pPhoto = (profile['photoUrl'] ?? '').toString().trim();
           if (pPhoto.isNotEmpty) {
             _resolvedPhoto = pPhoto;
-          }
-          final pPhone = (profile['phone'] ?? '').toString().trim();
-          if (pPhone.isNotEmpty) {
-            _resolvedPhone = pPhone;
           }
         });
       }
@@ -122,7 +109,6 @@ class _CallScreenState extends State<CallScreen>
 
   @override
   void dispose() {
-    _pulseController.dispose();
     _timer?.cancel();
     AgoraService.leaveChannel();
     super.dispose();
@@ -132,6 +118,23 @@ class _CallScreenState extends State<CallScreen>
     final mins = (seconds ~/ 60).toString().padLeft(2, '0');
     final secs = (seconds % 60).toString().padLeft(2, '0');
     return '$mins:$secs';
+  }
+
+  String get _vehicleInfo {
+    if (widget.subtitle.isEmpty) return '';
+    final parts = widget.subtitle.split('•').map((s) => s.trim()).toList();
+    // Filter out pass / subscription / order tokens
+    final cleanParts = parts.where((p) {
+      final lower = p.toLowerCase();
+      return !lower.contains('pass') &&
+          !lower.contains('order') &&
+          !lower.contains('booking') &&
+          !lower.contains('days');
+    }).toList();
+    if (cleanParts.isNotEmpty) {
+      return cleanParts.join(' • ');
+    }
+    return widget.subtitle;
   }
 
   @override
@@ -163,68 +166,38 @@ class _CallScreenState extends State<CallScreen>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Avatar with animated pulse rings
-                        AnimatedBuilder(
-                          animation: _pulseController,
-                          builder: (context, child) {
-                            return Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                // Outer Pulse Ring
-                                Container(
-                                  width: 170 + (_pulseController.value * 22),
-                                  height: 170 + (_pulseController.value * 22),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: (_isCallConnected ? AppColors.greenSuccess : AppColors.primary)
-                                        .withOpacity(0.18 - (_pulseController.value * 0.12)),
-                                  ),
-                                ),
-                                // Mid Pulse Ring
-                                Container(
-                                  width: 150 + (_pulseController.value * 12),
-                                  height: 150 + (_pulseController.value * 12),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: (_isCallConnected ? AppColors.greenSuccess : AppColors.primary)
-                                        .withOpacity(0.30 - (_pulseController.value * 0.15)),
-                                  ),
-                                ),
-                                // Avatar Circle (Real Initial / Custom Photo)
-                                Container(
-                                  width: 130,
-                                  height: 130,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: _isCallConnected ? AppColors.greenSuccess : Colors.white,
-                                      width: 3.5,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.3),
-                                        blurRadius: 16,
-                                        offset: const Offset(0, 8),
-                                      ),
-                                    ],
-                                  ),
-                                  child: ClipOval(
-                                    child: _resolvedPhoto.isNotEmpty
-                                        ? Image.network(
-                                            _resolvedPhoto,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => _buildInitialAvatar(initial),
-                                          )
-                                        : _buildInitialAvatar(initial),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
+                        // Fixed Static Profile Avatar (No animations/pulsing)
+                        Container(
+                          width: 140,
+                          height: 140,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.08),
+                            border: Border.all(
+                              color: _isCallConnected ? AppColors.greenSuccess : Colors.white24,
+                              width: 3.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.3),
+                                blurRadius: 16,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: _resolvedPhoto.isNotEmpty
+                                ? Image.network(
+                                    _resolvedPhoto,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => _buildInitialAvatar(initial),
+                                  )
+                                : _buildInitialAvatar(initial),
+                          ),
                         ),
                         const SizedBox(height: 24),
 
-                        // Partner Name (Real Space Owner / Real Seeker Driver)
+                        // Name
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
                           child: Text(
@@ -234,188 +207,70 @@ class _CallScreenState extends State<CallScreen>
                               color: Colors.white,
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
+                              letterSpacing: 0.3,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const SizedBox(height: 6),
 
-                        // Role Badge & Phone Row
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 6,
-                          alignment: WrapAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: Colors.white24),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    widget.partnerRole.contains('Owner') ? Icons.verified_user : Icons.directions_car,
-                                    color: const Color(0xFFA78BFA),
-                                    size: 13,
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    widget.partnerRole,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (_resolvedPhone.isNotEmpty)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.12),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(color: Colors.white24),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.phone,
-                                      color: AppColors.greenSuccess,
-                                      size: 12,
-                                    ),
-                                    const SizedBox(width: 5),
-                                    Text(
-                                      _resolvedPhone,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                          ],
-                        ),
-
-                        // Subtitle Details (e.g. Space Address / Vehicle Model)
-                        if (widget.subtitle.isNotEmpty) ...[
+                        // Vehicle Info
+                        if (_vehicleInfo.isNotEmpty) ...[
                           const SizedBox(height: 8),
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 32),
+                            padding: const EdgeInsets.symmetric(horizontal: 28),
                             child: Text(
-                              widget.subtitle,
+                              _vehicleInfo,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12.5,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.75),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
                               ),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
-                        const SizedBox(height: 10),
-
-                        // Status Subtitle (Calling / Ringing vs Connected)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              _isCallConnected ? Icons.lock_outline : Icons.ring_volume,
-                              size: 14,
-                              color: _isCallConnected ? Colors.white70 : const Color(0xFFFBBF24),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _isCallConnected
-                                  ? 'End-to-End Encrypted HD Call'
-                                  : (widget.isIncoming ? 'Incoming Voice Call...' : 'Ringing...'),
-                              style: TextStyle(
-                                color: _isCallConnected ? Colors.white70 : const Color(0xFFFBBF24),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
                         const SizedBox(height: 16),
 
-                        // Timer Badge: Displayed ONLY when other person has joined and call is connected
-                        if (_isCallConnected)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                                width: 1,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: const BoxDecoration(
-                                    color: AppColors.greenSuccess,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _formatDuration(_callSeconds),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 1.2,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        else
-                          // Waiting state badge (No Timer)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.black26,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.white10),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  width: 10,
-                                  height: 10,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 1.5,
-                                    color: Color(0xFFFBBF24),
-                                  ),
-                                ),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Waiting for person to answer...',
-                                  style: TextStyle(color: Colors.white70, fontSize: 12),
-                                ),
-                              ],
+                        // Time / Duration Badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.18),
+                              width: 1,
                             ),
                           ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: _isCallConnected ? AppColors.greenSuccess : const Color(0xFFFBBF24),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _isCallConnected
+                                    ? _formatDuration(_callSeconds)
+                                    : (widget.isIncoming ? 'Incoming...' : 'Calling...'),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.1,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),

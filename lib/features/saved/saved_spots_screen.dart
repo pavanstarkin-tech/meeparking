@@ -7,24 +7,24 @@ import '../../shared/providers/app_providers.dart';
 import '../parking/parking_details_screen.dart';
 import '../search/search_parking_screen.dart';
 
-class SavedSpotsBottomSheet extends ConsumerStatefulWidget {
-  const SavedSpotsBottomSheet({super.key});
-
-  static Future<void> show(BuildContext context) {
-    return showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => const SavedSpotsBottomSheet(),
-    );
-  }
+class SavedSpotsScreen extends ConsumerStatefulWidget {
+  const SavedSpotsScreen({super.key});
 
   @override
-  ConsumerState<SavedSpotsBottomSheet> createState() => _SavedSpotsBottomSheetState();
+  ConsumerState<SavedSpotsScreen> createState() => _SavedSpotsScreenState();
 }
 
-class _SavedSpotsBottomSheetState extends ConsumerState<SavedSpotsBottomSheet> {
-  Widget _buildSafeImage(String url, {double width = 75, double height = 75}) {
+// Backward compatibility alias for any existing show calls
+class SavedSpotsBottomSheet {
+  static Future<void> show(BuildContext context) {
+    return Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SavedSpotsScreen()),
+    );
+  }
+}
+
+class _SavedSpotsScreenState extends ConsumerState<SavedSpotsScreen> {
+  Widget _buildSafeImage(String url, {double width = 85, double height = 85}) {
     if (url.isEmpty) {
       return Container(
         width: width,
@@ -51,156 +51,81 @@ class _SavedSpotsBottomSheetState extends ConsumerState<SavedSpotsBottomSheet> {
   Widget build(BuildContext context) {
     final user = ref.watch(userProfileProvider);
 
-    return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.78,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        boxShadow: [
-          BoxShadow(color: Colors.black26, blurRadius: 20, offset: Offset(0, -4)),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Drag handle
-          Center(
-            child: Container(
-              width: 44,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
+    return Scaffold(
+      backgroundColor: AppColors.backgroundLight,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimaryLight, size: 20),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Saved Parking Spots',
+              style: TextStyle(
+                color: AppColors.textPrimaryLight,
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+                letterSpacing: -0.3,
               ),
             ),
+            Text(
+              'Your bookmarked favorites',
+              style: TextStyle(
+                color: AppColors.textSecondaryLight,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.pink.shade50,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.favorite_rounded, color: Colors.pink, size: 18),
           ),
-          const SizedBox(height: 16),
+        ],
+      ),
+      body: StreamBuilder<List<String>>(
+        stream: FirebaseRtdbService.streamSavedSpotIds(user.uid),
+        builder: (context, savedSnap) {
+          final savedIds = savedSnap.data ?? [];
 
-          // Header Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+          if (savedSnap.connectionState == ConnectionState.waiting && !savedSnap.hasData) {
+            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+          }
+
+          if (savedIds.isEmpty) {
+            return _buildEmptyState();
+          }
+
+          return StreamBuilder<List<ParkingSpace>>(
+            stream: FirebaseRtdbService.streamParkingSpaces(),
+            builder: (context, spacesSnap) {
+              if (spacesSnap.connectionState == ConnectionState.waiting && !spacesSnap.hasData) {
+                return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+              }
+
+              final allSpaces = spacesSnap.data ?? [];
+              final savedSpaces = allSpaces.where((s) => savedIds.contains(s.id)).toList();
+
+              if (savedSpaces.isEmpty) {
+                return _buildEmptyState();
+              }
+
+              return Column(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.pink.shade50,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.favorite_rounded, color: Colors.pink, size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Saved Spots',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimaryLight),
-                      ),
-                      Text(
-                        'Your bookmarked parking spaces',
-                        style: TextStyle(fontSize: 11.5, color: AppColors.textSecondaryLight),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close_rounded, color: AppColors.textSecondaryLight, size: 22),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Realtime Stream of ONLY User's Truly Saved Parking Spaces from RTDB
-          Expanded(
-            child: StreamBuilder<List<String>>(
-              stream: FirebaseRtdbService.streamSavedSpotIds(user.uid),
-              builder: (context, savedSnap) {
-                final savedIds = savedSnap.data ?? [];
-
-                if (savedSnap.connectionState == ConnectionState.waiting && !savedSnap.hasData) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: AppColors.primary),
-                  );
-                }
-
-                // If user has 0 saved spots in RTDB
-                if (savedIds.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(18),
-                          decoration: BoxDecoration(
-                            color: Colors.pink.shade50,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(Icons.favorite_border_rounded, size: 48, color: Colors.pink.shade300),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'No saved parking spots yet',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimaryLight),
-                        ),
-                        const SizedBox(height: 6),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 24),
-                          child: Text(
-                            'Tap the heart icon on any parking spot in Search or Details to bookmark it here.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 12, color: AppColors.textSecondaryLight, height: 1.35),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                // Match saved IDs against live database parking spaces
-                return StreamBuilder<List<ParkingSpace>>(
-                  stream: FirebaseRtdbService.streamParkingSpaces(),
-                  builder: (context, spacesSnap) {
-                    final allSpaces = spacesSnap.data ?? [];
-                    final savedSpaces = allSpaces.where((s) => savedIds.contains(s.id)).toList();
-
-                    if (savedSpaces.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(18),
-                              decoration: BoxDecoration(
-                                color: Colors.pink.shade50,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(Icons.favorite_border_rounded, size: 48, color: Colors.pink.shade300),
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'No saved parking spots',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimaryLight),
-                            ),
-                            const SizedBox(height: 6),
-                            const Text(
-                              'Your saved listings will appear here.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 12, color: AppColors.textSecondaryLight),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-
-                    return ListView.separated(
+                  Expanded(
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                       itemCount: savedSpaces.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
@@ -210,34 +135,34 @@ class _SavedSpotsBottomSheetState extends ConsumerState<SavedSpotsBottomSheet> {
                             : (space.pricing.fourWheeler.hourly > 0 ? space.pricing.fourWheeler.hourly.toInt() : 30);
                         final String imageUrl = space.images.isNotEmpty ? space.images.first : '';
 
-                        return GestureDetector(
+                        return InkWell(
                           onTap: () {
-                            Navigator.of(context).pop();
                             Navigator.of(context).push(
                               MaterialPageRoute(builder: (_) => ParkingDetailsScreen(spaceId: space.id)),
                             );
                           },
+                          borderRadius: BorderRadius.circular(20),
                           child: Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(20),
                               border: Border.all(color: Colors.grey.shade200),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.02),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
+                                  color: Colors.black.withOpacity(0.03),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 3),
                                 ),
                               ],
                             ),
                             child: Row(
                               children: [
                                 ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: _buildSafeImage(imageUrl, width: 70, height: 70),
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: _buildSafeImage(imageUrl, width: 80, height: 80),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -247,56 +172,75 @@ class _SavedSpotsBottomSheetState extends ConsumerState<SavedSpotsBottomSheet> {
                                           Expanded(
                                             child: Text(
                                               space.title,
-                                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                              style: const TextStyle(
+                                                fontSize: 14.5,
+                                                fontWeight: FontWeight.w800,
+                                                color: AppColors.textPrimaryLight,
+                                              ),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
                                           if (space.isEvChargingAvailable || space.hasEvCharging)
                                             Container(
-                                              margin: const EdgeInsets.only(left: 4),
-                                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                              margin: const EdgeInsets.only(left: 6),
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                               decoration: BoxDecoration(
                                                 color: AppColors.greenSuccess.withOpacity(0.12),
                                                 borderRadius: BorderRadius.circular(6),
                                               ),
                                               child: const Text(
-                                                'EV ⚡',
-                                                style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppColors.greenSuccess),
+                                                '⚡ EV',
+                                                style: TextStyle(
+                                                  fontSize: 9.5,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: AppColors.greenSuccess,
+                                                ),
                                               ),
                                             ),
                                         ],
                                       ),
-                                      const SizedBox(height: 2),
+                                      const SizedBox(height: 4),
                                       Text(
                                         space.address,
-                                        style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondaryLight),
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.textSecondaryLight,
+                                        ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      const SizedBox(height: 6),
+                                      const SizedBox(height: 8),
                                       Row(
                                         children: [
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                             decoration: BoxDecoration(
                                               color: AppColors.primary.withOpacity(0.08),
                                               borderRadius: BorderRadius.circular(8),
                                             ),
                                             child: Text(
                                               '₹$price / hr',
-                                              style: const TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.bold),
+                                              style: const TextStyle(
+                                                fontSize: 12.5,
+                                                color: AppColors.primary,
+                                                fontWeight: FontWeight.w800,
+                                              ),
                                             ),
                                           ),
                                           if (space.rating > 0) ...[
                                             const SizedBox(width: 8),
                                             Row(
                                               children: [
-                                                const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF59E0B)),
+                                                const Icon(Icons.star_rounded, size: 15, color: Color(0xFFF59E0B)),
                                                 const SizedBox(width: 2),
                                                 Text(
                                                   '${space.rating}',
-                                                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: AppColors.textPrimaryLight,
+                                                  ),
                                                 ),
                                               ],
                                             ),
@@ -306,7 +250,6 @@ class _SavedSpotsBottomSheetState extends ConsumerState<SavedSpotsBottomSheet> {
                                     ],
                                   ),
                                 ),
-                                // Interactive Remove Bookmark Button (Deletes permanently from RTDB)
                                 IconButton(
                                   onPressed: () async {
                                     final messenger = ScaffoldMessenger.of(context);
@@ -316,6 +259,7 @@ class _SavedSpotsBottomSheetState extends ConsumerState<SavedSpotsBottomSheet> {
                                         content: Text('${space.title} removed from saved spots'),
                                         duration: const Duration(seconds: 2),
                                         behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                       ),
                                     );
                                   },
@@ -327,21 +271,71 @@ class _SavedSpotsBottomSheetState extends ConsumerState<SavedSpotsBottomSheet> {
                           ),
                         );
                       },
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 12),
+                    ),
+                  ),
+                  Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const SearchParkingScreen()),
+                          );
+                        },
+                        icon: const Icon(Icons.search_rounded, color: Colors.white, size: 18),
+                        label: const Text(
+                          'Explore More Parking Spots',
+                          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
 
-          // Bottom Search CTA
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton.icon(
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: Colors.pink.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.favorite_border_rounded, size: 54, color: Colors.pink.shade300),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'No Saved Parking Spots Yet',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimaryLight),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Tap the bookmark or heart icon on any parking space to save it here for quick access.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondaryLight, height: 1.4),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
               onPressed: () {
-                Navigator.of(context).pop();
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const SearchParkingScreen()),
                 );
@@ -354,33 +348,13 @@ class _SavedSpotsBottomSheetState extends ConsumerState<SavedSpotsBottomSheet> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                 elevation: 0,
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class SavedSpotsScreen extends StatelessWidget {
-  const SavedSpotsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
-      appBar: AppBar(
-        title: const Text('Saved Spots', style: TextStyle(color: AppColors.textPrimaryLight, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimaryLight),
-          onPressed: () => Navigator.of(context).pop(),
+          ],
         ),
       ),
-      body: const SavedSpotsBottomSheet(),
     );
   }
 }

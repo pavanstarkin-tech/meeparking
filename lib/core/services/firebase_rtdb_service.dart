@@ -10,6 +10,8 @@ import '../../shared/models/chat_message.dart';
 import '../../shared/models/user_profile.dart';
 import '../../shared/models/partner_payout_record.dart';
 import '../../shared/models/chat_conversation.dart';
+import '../../shared/models/offer.dart';
+import '../../shared/models/support_ticket.dart';
 
 class FirebaseRtdbService {
   static FirebaseDatabase? _db;
@@ -995,7 +997,10 @@ class FirebaseRtdbService {
         });
       }
 
-      // 3. Also merge bookings to ensure all booked drivers/partners show up in conversation list
+      // 3. Merge bookings: only show active/upcoming bookings; remove chats if booking is completed
+      final Set<String> completedChatIds = <String>{};
+      final Set<String> activeChatIds = <String>{};
+
       try {
         final snap = await db.ref('bookings').get();
         if (snap.exists && snap.value is Map) {
@@ -1003,6 +1008,10 @@ class FirebaseRtdbService {
             if (value is Map) {
               try {
                 final b = Booking.fromMap(Map<String, dynamic>.from(value), key.toString());
+                final isCompletedOrCancelled = b.status.toLowerCase() == 'completed' ||
+                    b.status.toLowerCase() == 'cancelled' ||
+                    b.computedStatus == 'completed';
+
                 final shouldInclude = isPartner
                     ? (b.partnerId == userId || userId.isEmpty || b.partnerId == 'partner_01')
                     : (b.userId == userId || userId.isEmpty || b.userId == 'user_auth_01');
@@ -1012,47 +1021,52 @@ class FirebaseRtdbService {
                   final ids = [userId, otherId]..sort();
                   final chatId = 'chat_${ids.join('_')}';
 
-                  final resolved = resolveUser(otherId, fallbackName: isPartner ? 'Driver Customer' : b.spaceTitle);
-                  final vehicleTag = [b.vehicleModel, b.vehicleNumber].where((s) => s.isNotEmpty && s != 'N/A').join(' • ');
-
-                  if (!conversationsMap.containsKey(chatId)) {
-                    conversationsMap[chatId] = ChatConversation(
-                      id: chatId,
-                      otherUserId: otherId,
-                      otherUserName: isPartner
-                          ? (resolved['name']?.isNotEmpty == true && resolved['name'] != 'User' ? resolved['name']! : (b.vehicleModel.isNotEmpty ? b.vehicleModel : 'Driver Customer'))
-                          : b.spaceTitle,
-                      otherUserPhoto: resolved['photoUrl'] ?? '',
-                      otherUserPhone: resolved['phone'] ?? '',
-                      otherUserRole: isPartner ? 'user' : 'partner',
-                      spaceTitle: b.spaceTitle,
-                      spaceAddress: b.spaceAddress,
-                      vehicleInfo: vehicleTag,
-                      lastMessage: 'Booking confirmed • ${b.timeSlot}',
-                      lastMessageTime: DateTime.tryParse(b.bookingDate) ?? DateTime.now(),
-                      bookingId: b.id,
-                    );
+                  if (isCompletedOrCancelled) {
+                    completedChatIds.add(chatId);
                   } else {
-                    // Update existing with customer profile if name was generic
-                    final existing = conversationsMap[chatId]!;
-                    if (isPartner && (existing.otherUserName == 'Driver Customer' || existing.otherUserName == 'User' || existing.otherUserName == b.vehicleModel)) {
-                      if (resolved['name']?.isNotEmpty == true && resolved['name'] != 'User') {
-                        conversationsMap[chatId] = ChatConversation(
-                          id: existing.id,
-                          otherUserId: existing.otherUserId,
-                          otherUserName: resolved['name']!,
-                          otherUserPhoto: resolved['photoUrl']?.isNotEmpty == true ? resolved['photoUrl']! : existing.otherUserPhoto,
-                          otherUserPhone: resolved['phone']?.isNotEmpty == true ? resolved['phone']! : existing.otherUserPhone,
-                          otherUserRole: existing.otherUserRole,
-                          spaceTitle: existing.spaceTitle.isNotEmpty ? existing.spaceTitle : b.spaceTitle,
-                          spaceAddress: existing.spaceAddress.isNotEmpty ? existing.spaceAddress : b.spaceAddress,
-                          vehicleInfo: existing.vehicleInfo.isNotEmpty ? existing.vehicleInfo : vehicleTag,
-                          lastMessage: existing.lastMessage,
-                          lastMessageTime: existing.lastMessageTime,
-                          lastSenderId: existing.lastSenderId,
-                          unreadCount: existing.unreadCount,
-                          bookingId: existing.bookingId ?? b.id,
-                        );
+                    activeChatIds.add(chatId);
+                    final resolved = resolveUser(otherId, fallbackName: isPartner ? 'Driver Customer' : b.spaceTitle);
+                    final vehicleTag = [b.vehicleModel, b.vehicleNumber].where((s) => s.isNotEmpty && s != 'N/A').join(' • ');
+
+                    if (!conversationsMap.containsKey(chatId)) {
+                      conversationsMap[chatId] = ChatConversation(
+                        id: chatId,
+                        otherUserId: otherId,
+                        otherUserName: isPartner
+                            ? (resolved['name']?.isNotEmpty == true && resolved['name'] != 'User' ? resolved['name']! : (b.vehicleModel.isNotEmpty ? b.vehicleModel : 'Driver Customer'))
+                            : b.spaceTitle,
+                        otherUserPhoto: resolved['photoUrl'] ?? '',
+                        otherUserPhone: resolved['phone'] ?? '',
+                        otherUserRole: isPartner ? 'user' : 'partner',
+                        spaceTitle: b.spaceTitle,
+                        spaceAddress: b.spaceAddress,
+                        vehicleInfo: vehicleTag,
+                        lastMessage: 'Booking confirmed • ${b.timeSlot}',
+                        lastMessageTime: DateTime.tryParse(b.bookingDate) ?? DateTime.now(),
+                        bookingId: b.id,
+                      );
+                    } else {
+                      // Update existing with customer profile if name was generic
+                      final existing = conversationsMap[chatId]!;
+                      if (isPartner && (existing.otherUserName == 'Driver Customer' || existing.otherUserName == 'User' || existing.otherUserName == b.vehicleModel)) {
+                        if (resolved['name']?.isNotEmpty == true && resolved['name'] != 'User') {
+                          conversationsMap[chatId] = ChatConversation(
+                            id: existing.id,
+                            otherUserId: existing.otherUserId,
+                            otherUserName: resolved['name']!,
+                            otherUserPhoto: resolved['photoUrl']?.isNotEmpty == true ? resolved['photoUrl']! : existing.otherUserPhoto,
+                            otherUserPhone: resolved['phone']?.isNotEmpty == true ? resolved['phone']! : existing.otherUserPhone,
+                            otherUserRole: existing.otherUserRole,
+                            spaceTitle: existing.spaceTitle.isNotEmpty ? existing.spaceTitle : b.spaceTitle,
+                            spaceAddress: existing.spaceAddress.isNotEmpty ? existing.spaceAddress : b.spaceAddress,
+                            vehicleInfo: existing.vehicleInfo.isNotEmpty ? existing.vehicleInfo : vehicleTag,
+                            lastMessage: existing.lastMessage,
+                            lastMessageTime: existing.lastMessageTime,
+                            lastSenderId: existing.lastSenderId,
+                            unreadCount: existing.unreadCount,
+                            bookingId: existing.bookingId ?? b.id,
+                          );
+                        }
                       }
                     }
                   }
@@ -1063,6 +1077,13 @@ class FirebaseRtdbService {
         }
       } catch (_) {}
 
+      // Remove any chats that belong to completed bookings if no active booking remains
+      for (final completedId in completedChatIds) {
+        if (!activeChatIds.contains(completedId)) {
+          conversationsMap.remove(completedId);
+        }
+      }
+
       final list = conversationsMap.values.toList();
       list.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
       return list;
@@ -1072,6 +1093,134 @@ class FirebaseRtdbService {
   /// Seed initial database data if empty
   static Future<void> seedInitialDataIfEmpty() async {
     // No hardcoded fake data seeding - database uses real user submissions
+  }
+
+  /// Realtime Stream of Promotional Offers / Coupons from Firebase RTDB
+  static Stream<List<Offer>> subscribeOffers() {
+    return db.ref('offers').onValue.map((event) {
+      final val = event.snapshot.value;
+      if (val == null || val is! Map) {
+        return <Offer>[];
+      }
+
+      final list = <Offer>[];
+      val.forEach((k, v) {
+        if (v is Map) {
+          try {
+            final offer = Offer.fromMap(k.toString(), Map<dynamic, dynamic>.from(v));
+            if (offer.isActive) {
+              list.add(offer);
+            }
+          } catch (_) {}
+        }
+      });
+
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
+  /// Create a new Support Ticket in Firebase RTDB
+  static Future<String> createSupportTicket(SupportTicket ticket) async {
+    final ticketRef = db.ref('supportTickets').push();
+    final newId = ticketRef.key ?? 'TICK_${DateTime.now().millisecondsSinceEpoch}';
+    final ticketData = ticket.toMap();
+    ticketData['id'] = newId;
+
+    await ticketRef.set(ticketData);
+
+    // If initial description provided, also add as first message
+    if (ticket.description.trim().isNotEmpty) {
+      final msgRef = db.ref('supportTickets/$newId/messages').push();
+      final msgId = msgRef.key ?? 'MSG_${DateTime.now().millisecondsSinceEpoch}';
+      await msgRef.set({
+        'id': msgId,
+        'senderId': ticket.userId,
+        'senderName': ticket.userName,
+        'senderRole': ticket.userRole,
+        'text': ticket.description.trim(),
+        'timestamp': ticket.createdAt,
+      });
+    }
+
+    return newId;
+  }
+
+  /// Realtime Stream of Support Tickets for a User or Partner
+  static Stream<List<SupportTicket>> streamUserSupportTickets(String userId) {
+    return db.ref('supportTickets').onValue.map((event) {
+      final val = event.snapshot.value;
+      if (val == null || val is! Map) {
+        return <SupportTicket>[];
+      }
+
+      final list = <SupportTicket>[];
+      val.forEach((k, v) {
+        if (v is Map) {
+          try {
+            final ticket = SupportTicket.fromMap(k.toString(), Map<dynamic, dynamic>.from(v));
+            if (userId.isEmpty || ticket.userId == userId || (ticket.userId.isEmpty && userId == 'user_01')) {
+              list.add(ticket);
+            }
+          } catch (_) {}
+        }
+      });
+
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
+  /// Realtime Stream of Messages inside a Support Ticket
+  static Stream<List<SupportMessage>> streamTicketMessages(String ticketId) {
+    return db.ref('supportTickets/$ticketId/messages').onValue.map((event) {
+      final val = event.snapshot.value;
+      if (val == null || val is! Map) {
+        return <SupportMessage>[];
+      }
+
+      final list = <SupportMessage>[];
+      val.forEach((k, v) {
+        if (v is Map) {
+          try {
+            final msg = SupportMessage.fromMap(k.toString(), Map<dynamic, dynamic>.from(v));
+            list.add(msg);
+          } catch (_) {}
+        }
+      });
+
+      list.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      return list;
+    });
+  }
+
+  /// Send a message in a Support Ticket live chat thread
+  static Future<void> sendTicketMessage({
+    required String ticketId,
+    required String senderId,
+    required String senderName,
+    required String senderRole,
+    required String text,
+  }) async {
+    final msgRef = db.ref('supportTickets/$ticketId/messages').push();
+    final msgId = msgRef.key ?? 'MSG_${DateTime.now().millisecondsSinceEpoch}';
+    final timestamp = DateTime.now().toIso8601String();
+
+    await msgRef.set({
+      'id': msgId,
+      'senderId': senderId,
+      'senderName': senderName,
+      'senderRole': senderRole,
+      'text': text,
+      'timestamp': timestamp,
+    });
+
+    // Update ticket metadata
+    await db.ref('supportTickets/$ticketId').update({
+      'lastMessage': text,
+      'updatedAt': timestamp,
+      'status': 'open',
+    });
   }
 }
 

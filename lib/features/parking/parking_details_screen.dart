@@ -10,6 +10,7 @@ import '../../core/services/razorpay_service.dart';
 import '../../shared/models/booking.dart';
 import '../../shared/models/parking_space.dart';
 import '../../shared/models/user_profile.dart';
+import '../../shared/models/offer.dart';
 import '../../shared/providers/app_providers.dart';
 import '../../shared/widgets/slot_space_slider.dart';
 import '../booking/booking_confirmed_screen.dart';
@@ -1320,7 +1321,7 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                               }
 
                               Navigator.of(context).pop();
-                              _showPaymentGatewaySheet(
+                              _showInstantBookingSheet(
                                 context: context,
                                 space: space,
                                 vehicleCategory: selectedVehicleCategory,
@@ -1362,26 +1363,30 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                 ),
               ),
             );
-              },
-            );
           },
         );
       },
     );
-  }
+  },
+);
+}
 
-  void _showPaymentGatewaySheet({
+  void _showInstantBookingSheet({
     required BuildContext context,
     required ParkingSpace space,
+    required String bookingType,
     required String vehicleCategory,
     required String vehicleNumber,
     required String vehicleModel,
-    required String bookingType,
     required double totalAmount,
     required String bookingDateText,
     required String timeSlotText,
   }) {
     bool isProcessing = false;
+    final couponController = TextEditingController();
+    Offer? selectedOffer;
+    String? couponStatusMessage;
+    bool isCouponSuccess = false;
 
     showModalBottomSheet(
       context: context,
@@ -1394,7 +1399,13 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
             final walletAsync = ref.watch(walletBalanceStreamProvider);
             final rawBalance = walletAsync.asData?.value ?? 1250.0;
             final double walletBalance = rawBalance > 0 ? rawBalance : 0.0;
-            final bool hasEnoughWallet = walletBalance >= totalAmount;
+
+            final offersAsync = ref.watch(offersStreamProvider);
+            final allOffers = offersAsync.asData?.value ?? [];
+
+            final double discount = selectedOffer != null ? selectedOffer!.calculateDiscount(totalAmount) : 0.0;
+            final double payableTotal = (totalAmount - discount).clamp(0.0, double.infinity);
+            final bool hasEnoughWallet = walletBalance >= payableTotal;
 
             final String vehicleNo = vehicleNumber;
             final String vehicleMdl = vehicleModel;
@@ -1414,7 +1425,6 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Drag indicator
                       Center(
                         child: Container(
                           width: 42,
@@ -1426,8 +1436,6 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                           ),
                         ),
                       ),
-
-                      // Header
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -1452,8 +1460,6 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                         ],
                       ),
                       const Divider(height: 16),
-
-                      // 1. Parking Space Details
                       const Text(
                         '1. Parking Space Details',
                         style: TextStyle(
@@ -1473,7 +1479,6 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Space Title & Rating Row
                             Row(
                               children: [
                                 Container(
@@ -1534,35 +1539,10 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                                 ),
                               ],
                             ),
-                            if (space.amenities.isNotEmpty) ...[
-                              const SizedBox(height: 10),
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 4,
-                                children: space.amenities.take(3).map((a) {
-                                  final clean = ParkingSpace.sanitizeAmenity(a);
-                                  if (clean.isEmpty) return const SizedBox.shrink();
-                                  return Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.grey.shade300),
-                                    ),
-                                    child: Text(
-                                      clean,
-                                      style: const TextStyle(fontSize: 10, color: AppColors.primary, fontWeight: FontWeight.w600),
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                            ],
                           ],
                         ),
                       ),
                       const SizedBox(height: 14),
-
-                      // 2. Vehicle Details
                       const Text(
                         '2. Vehicle Details',
                         style: TextStyle(
@@ -1624,8 +1604,6 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                         ),
                       ),
                       const SizedBox(height: 14),
-
-                      // 3. Current User Details
                       const Text(
                         '3. User Details',
                         style: TextStyle(
@@ -1678,8 +1656,212 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                         ),
                       ),
                       const SizedBox(height: 14),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.local_offer_outlined, color: AppColors.primary, size: 16),
+                              SizedBox(width: 6),
+                              Text(
+                                'Offers & Promo Code',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimaryLight,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (selectedOffer != null)
+                            GestureDetector(
+                              onTap: () {
+                                setPayState(() {
+                                  selectedOffer = null;
+                                  couponController.clear();
+                                  couponStatusMessage = null;
+                                  isCouponSuccess = false;
+                                });
+                              },
+                              child: const Text(
+                                'Remove',
+                                style: TextStyle(
+                                  color: AppColors.redError,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (selectedOffer != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '🎉 "${selectedOffer!.code}" Applied! Saving ₹${discount.toInt()}',
+                                  style: const TextStyle(
+                                    color: Color(0xFF065F46),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 42,
+                                child: TextField(
+                                  controller: couponController,
+                                  textCapitalization: TextCapitalization.characters,
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                  decoration: InputDecoration(
+                                    hintText: 'Enter coupon code',
+                                    hintStyle: const TextStyle(fontSize: 12, color: Colors.grey),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                    filled: true,
+                                    fillColor: AppColors.backgroundLight,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(color: Colors.grey.shade300),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(color: Colors.grey.shade300),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(color: AppColors.primary),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              height: 42,
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  final entered = couponController.text.trim().toUpperCase();
+                                  if (entered.isEmpty) return;
 
-                      // 4. Amount & Wallet Summary Card
+                                  final matched = allOffers.cast<Offer?>().firstWhere(
+                                        (o) => o?.code == entered && o?.isActive == true,
+                                        orElse: () => null,
+                                      );
+
+                                  if (matched == null) {
+                                    setPayState(() {
+                                      couponStatusMessage = 'Invalid or expired coupon "$entered"';
+                                      isCouponSuccess = false;
+                                    });
+                                  } else if (totalAmount < matched.minBookingAmount) {
+                                    setPayState(() {
+                                      couponStatusMessage =
+                                          'Min booking spend ₹${matched.minBookingAmount.toInt()} required for this coupon.';
+                                      isCouponSuccess = false;
+                                    });
+                                  } else {
+                                    setPayState(() {
+                                      selectedOffer = matched;
+                                      couponStatusMessage = null;
+                                      isCouponSuccess = true;
+                                    });
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  elevation: 0,
+                                ),
+                                child: const Text(
+                                  'Apply',
+                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (couponStatusMessage != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            couponStatusMessage!,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isCouponSuccess ? const Color(0xFF10B981) : AppColors.redError,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                        if (allOffers.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: allOffers.take(4).map((offer) {
+                                return GestureDetector(
+                                  onTap: () {
+                                    if (totalAmount < offer.minBookingAmount) {
+                                      setPayState(() {
+                                        couponStatusMessage =
+                                            'Min spend ₹${offer.minBookingAmount.toInt()} required for ${offer.code}';
+                                        isCouponSuccess = false;
+                                      });
+                                    } else {
+                                      setPayState(() {
+                                        selectedOffer = offer;
+                                        couponController.text = offer.code;
+                                        couponStatusMessage = null;
+                                        isCouponSuccess = true;
+                                      });
+                                    }
+                                  },
+                                  child: Container(
+                                    margin: const EdgeInsets.only(right: 8),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.purple.shade50,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: Colors.purple.shade200),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.local_offer, size: 12, color: Colors.purple),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${offer.code} (${offer.discountType == 'percentage' ? '${offer.discountValue.toInt()}% OFF' : '₹${offer.discountValue.toInt()} OFF'})',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.purple,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ],
+                      ],
+                      const SizedBox(height: 14),
                       const Text(
                         '4. Booking & Amount Summary',
                         style: TextStyle(
@@ -1726,8 +1908,46 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                               ],
                             ),
                             const Divider(height: 16),
-
-                            // Wallet Balance Line
+                            if (discount > 0) ...[
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Base Rate',
+                                    style: TextStyle(fontSize: 12, color: AppColors.textSecondaryLight),
+                                  ),
+                                  Text(
+                                    '₹${totalAmount.toInt()}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      decoration: TextDecoration.lineThrough,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.local_offer, size: 14, color: Color(0xFF10B981)),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Coupon (${selectedOffer!.code})',
+                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    '- ₹${discount.toInt()}',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 16),
+                            ],
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -1761,14 +1981,13 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                                 ),
                                 Text(
                                   hasEnoughWallet
-                                      ? '- ₹${totalAmount.toInt()}'
-                                      : '- ₹${walletBalance.toInt()} (+ ₹${(totalAmount - walletBalance).toInt()} Razorpay)',
+                                      ? '- ₹${payableTotal.toInt()}'
+                                      : '- ₹${walletBalance.toInt()} (+ ₹${(payableTotal - walletBalance).toInt()} Razorpay)',
                                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                 ),
                               ],
                             ),
                             const Divider(height: 16),
-
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -1777,7 +1996,7 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimaryLight),
                                 ),
                                 Text(
-                                  '₹${totalAmount.toInt()}',
+                                  '₹${payableTotal.toInt()}',
                                   style: const TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
@@ -1790,8 +2009,6 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
-
-                      // 5. Confirm & Pay Button (At the bottom)
                       SizedBox(
                         width: double.infinity,
                         height: 52,
@@ -1800,9 +2017,7 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                               ? null
                               : () async {
                                   setPayState(() => isProcessing = true);
-
                                   final userId = user.uid.isNotEmpty ? user.uid : 'user_01';
-
                                   final booking = Booking(
                                     id: 'MEE${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}',
                                     spaceId: space.id,
@@ -1815,12 +2030,13 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                                     vehicleType: vehicleCategory,
                                     bookingDate: bookingDateText,
                                     timeSlot: timeSlotText,
-                                    totalAmount: totalAmount,
+                                    totalAmount: payableTotal,
+                                    couponCode: selectedOffer?.code,
+                                    discountAmount: discount > 0 ? discount : null,
                                     status: 'upcoming',
                                     createdAt: DateTime.now().toIso8601String(),
                                   );
 
-                                  // Check if this vehicle is already booked for this parking slot at the same time
                                   final hasConflict = await FirebaseRtdbService.hasVehicleBookingConflict(
                                     vehicleNumber: vehicleNo,
                                     spaceId: space.id,
@@ -1841,10 +2057,9 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                                   }
 
                                   if (hasEnoughWallet) {
-                                    // 1. Direct Wallet Payment (Full amount covered)
                                     try {
                                       await FirebaseRtdbService.createBooking(booking);
-                                      await FirebaseRtdbService.deductWallet(userId, totalAmount, spaceTitle: space.title);
+                                      await FirebaseRtdbService.deductWallet(userId, payableTotal, spaceTitle: space.title);
                                     } catch (e) {
                                       debugPrint('Booking save error: $e');
                                       setPayState(() => isProcessing = false);
@@ -1872,8 +2087,7 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                                       );
                                     }
                                   } else {
-                                    // 2. Pay via Razorpay Orders API for remaining amount
-                                    final double payableViaRazorpay = walletBalance > 0 ? (totalAmount - walletBalance) : totalAmount;
+                                    final double payableViaRazorpay = walletBalance > 0 ? (payableTotal - walletBalance) : payableTotal;
                                     final double walletDeduct = walletBalance > 0 ? walletBalance : 0.0;
 
                                     _pendingRazorpayBooking = booking;
@@ -1881,7 +2095,6 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
 
                                     if (ctx.mounted) Navigator.of(ctx).pop();
 
-                                    // Create order via Razorpay Orders API with customer details and launch checkout
                                     await _razorpayService.openCheckout(
                                       amount: payableViaRazorpay,
                                       name: 'Mee Parking',
@@ -1901,12 +2114,12 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                                         'userName': user.name,
                                         'userPhone': user.phone,
                                         'userEmail': user.email,
-                                        'totalAmount': totalAmount.toString(),
+                                        'totalAmount': payableTotal.toString(),
+                                        'couponCode': selectedOffer?.code ?? '',
                                       },
                                     );
                                   }
                                 },
-
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             shape: RoundedRectangleBorder(
@@ -1921,7 +2134,7 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                                   child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                                 )
                               : Text(
-                                  'Pay ₹${totalAmount.toInt()} & Confirm Booking',
+                                  'Pay ₹${payableTotal.toInt()} & Confirm Booking',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 15,

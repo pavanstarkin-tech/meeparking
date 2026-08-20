@@ -21,6 +21,8 @@ class Booking {
   final String createdAt;
   final double? userRating;
   final String? userReview;
+  final String? couponCode;
+  final double? discountAmount;
 
   Booking({
     required this.id,
@@ -45,6 +47,8 @@ class Booking {
     required this.createdAt,
     this.userRating,
     this.userReview,
+    this.couponCode,
+    this.discountAmount,
   })  : entryOtp = entryOtp ?? _generateOtp(id, 'entry'),
         exitOtp = exitOtp ?? _generateOtp(id, 'exit');
 
@@ -95,6 +99,8 @@ class Booking {
     String? createdAt,
     double? userRating,
     String? userReview,
+    String? couponCode,
+    double? discountAmount,
   }) {
     return Booking(
       id: id ?? this.id,
@@ -119,6 +125,8 @@ class Booking {
       createdAt: createdAt ?? this.createdAt,
       userRating: userRating ?? this.userRating,
       userReview: userReview ?? this.userReview,
+      couponCode: couponCode ?? this.couponCode,
+      discountAmount: discountAmount ?? this.discountAmount,
     );
   }
 
@@ -322,6 +330,8 @@ class Booking {
         'createdAt': createdAt,
         'userRating': userRating,
         'userReview': userReview,
+        if (couponCode != null) 'couponCode': couponCode,
+        if (discountAmount != null) 'discountAmount': discountAmount,
       };
 
   Map<String, dynamic> toMap() => toJson();
@@ -351,6 +361,8 @@ class Booking {
       createdAt: json['createdAt']?.toString() ?? DateTime.now().toIso8601String(),
       userRating: (json['userRating'] as num?)?.toDouble(),
       userReview: json['userReview'] as String?,
+      couponCode: json['couponCode']?.toString(),
+      discountAmount: (json['discountAmount'] as num?)?.toDouble(),
     );
   }
 

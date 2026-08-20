@@ -10,6 +10,7 @@ import { BookingsPage } from './pages/BookingsPage';
 import { UsersPage } from './pages/UsersPage';
 import { PartnersPage } from './pages/PartnersPage';
 import { ListingsPage } from './pages/ListingsPage';
+import { OffersPage } from './pages/OffersPage';
 import { PayoutsPage } from './pages/PayoutsPage';
 import { PricingPage } from './pages/PricingPage';
 import { SupportPage } from './pages/SupportPage';
@@ -38,6 +39,7 @@ export function App() {
             <Route path="users" element={<UsersPage />} />
             <Route path="partners" element={<PartnersPage />} />
             <Route path="listings" element={<ListingsPage />} />
+            <Route path="offers" element={<OffersPage />} />
             <Route path="pricing" element={<PricingPage />} />
             <Route path="payouts" element={<PayoutsPage />} />
             <Route path="support" element={<SupportPage />} />

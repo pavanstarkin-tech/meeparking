@@ -103,57 +103,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          // Top Right Ambient Gradient Orb
-          Positioned(
-            top: -80,
-            right: -60,
-            child: Container(
-              width: 280,
-              height: 280,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFF7C3AED).withOpacity(0.12),
-                    const Color(0xFF6B2D9B).withOpacity(0.02),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Bottom Left Ambient Gradient Orb
-          Positioned(
-            bottom: -60,
-            left: -60,
-            child: Container(
-              width: 240,
-              height: 240,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFF8B3DCC).withOpacity(0.10),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Main Content
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                physics: const ClampingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                     // Brand Logo Header (2X Size)
                     Center(
                       child: Column(
@@ -475,8 +433,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
             ),
           ),
-        ],
-      ),
     );
   }
 }

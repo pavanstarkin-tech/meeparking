@@ -259,21 +259,22 @@ class BookingConfirmedScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
 
-              // Primary CTA "Navigate to Spot"
+              // Primary CTA "View in My Bookings"
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    Navigator.of(context).push(
+                    Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(
-                        builder: (_) => NavigationScreen(booking: booking),
+                        builder: (_) => const HomeScreen(initialTab: 1),
                       ),
+                      (route) => false,
                     );
                   },
-                  icon: const Icon(Icons.navigation_outlined, color: Colors.white),
+                  icon: const Icon(Icons.confirmation_number_outlined, color: Colors.white),
                   label: const Text(
-                    'Navigate to Spot',
+                    'View in My Bookings',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -288,24 +289,33 @@ class BookingConfirmedScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
 
-              // Secondary CTA "Go Home"
-              GestureDetector(
-                onTap: () {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const HomeScreen()),
-                    (route) => false,
-                  );
-                },
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8.0),
-                  child: Text(
-                    'Go Home',
+              // Secondary CTA "Navigate to Spot"
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => NavigationScreen(booking: booking),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.navigation_outlined, color: AppColors.primary),
+                  label: const Text(
+                    'Navigate to Spot',
                     style: TextStyle(
                       color: AppColors.primary,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.primary),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                 ),

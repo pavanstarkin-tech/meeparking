@@ -512,11 +512,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                         ),
                                       ],
                                     ),
-                                    child: const Center(
-                                      child: Icon(
-                                        Icons.navigation_rounded,
-                                        color: Colors.white,
-                                        size: 20,
+                                    child: Center(
+                                      child: Transform.rotate(
+                                        angle: 45 * (math.pi / 180.0),
+                                        child: const Icon(
+                                          Icons.navigation_rounded,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -551,11 +554,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                       ),
                                     ],
                                   ),
-                                  child: const Center(
-                                    child: Icon(
-                                      Icons.navigation_rounded,
-                                      color: Colors.white,
-                                      size: 13,
+                                  child: Center(
+                                    child: Transform.rotate(
+                                      angle: 45 * (math.pi / 180.0),
+                                      child: const Icon(
+                                        Icons.navigation_rounded,
+                                        color: Colors.white,
+                                        size: 13,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -632,7 +638,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                         ],
                       ),
                       child: Icon(
-                        currentStep?.icon ?? Icons.navigation_rounded,
+                        currentStep?.icon ?? Icons.straight_rounded,
                         color: Colors.white,
                         size: 32,
                       ),

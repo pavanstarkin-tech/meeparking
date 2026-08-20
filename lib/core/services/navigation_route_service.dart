@@ -20,20 +20,23 @@ class RouteStep {
   IconData get icon {
     final t = type.toLowerCase();
     final m = modifier.toLowerCase();
-    if (t.contains('arrive')) return Icons.pin_drop_rounded;
-    if (t.contains('depart')) return Icons.navigation_rounded;
-    if (t.contains('roundabout') || t.contains('rotary')) return Icons.roundabout_right_rounded;
-    if (t.contains('fork')) return m.contains('left') ? Icons.fork_left_rounded : Icons.fork_right_rounded;
-    if (t.contains('merge')) return Icons.merge_rounded;
-    if (m.contains('sharp right')) return Icons.turn_sharp_right_rounded;
-    if (m.contains('sharp left')) return Icons.turn_sharp_left_rounded;
-    if (m.contains('slight right')) return Icons.turn_slight_right_rounded;
-    if (m.contains('slight left')) return Icons.turn_slight_left_rounded;
-    if (m.contains('right') || t.contains('right')) return Icons.turn_right_rounded;
-    if (m.contains('left') || t.contains('left')) return Icons.turn_left_rounded;
-    if (m.contains('uturn') || t.contains('uturn')) return Icons.u_turn_left_rounded;
-    if (m.contains('straight') || t.contains('continue')) return Icons.straight_rounded;
-    return Icons.navigation_rounded;
+    final inst = instruction.toLowerCase();
+
+    if (t.contains('arrive') || inst.contains('arrive') || inst.contains('reached')) return Icons.pin_drop_rounded;
+    if (m.contains('uturn') || t.contains('uturn') || inst.contains('u-turn')) return Icons.u_turn_left_rounded;
+    if (m.contains('sharp right') || inst.contains('sharp right')) return Icons.turn_sharp_right_rounded;
+    if (m.contains('sharp left') || inst.contains('sharp left')) return Icons.turn_sharp_left_rounded;
+    if (m.contains('slight right') || inst.contains('slight right') || inst.contains('bear right')) return Icons.turn_slight_right_rounded;
+    if (m.contains('slight left') || inst.contains('slight left') || inst.contains('bear left')) return Icons.turn_slight_left_rounded;
+    if (m.contains('right') || t.contains('right') || inst.contains('turn right')) return Icons.turn_right_rounded;
+    if (m.contains('left') || t.contains('left') || inst.contains('turn left')) return Icons.turn_left_rounded;
+    if (t.contains('roundabout') || t.contains('rotary') || inst.contains('roundabout')) return Icons.roundabout_right_rounded;
+    if (t.contains('fork') || inst.contains('fork')) return (m.contains('left') || inst.contains('left')) ? Icons.fork_left_rounded : Icons.fork_right_rounded;
+    if (t.contains('merge') || inst.contains('merge')) return Icons.merge_rounded;
+    if (m.contains('straight') || t.contains('continue') || t.contains('depart') || inst.contains('straight') || inst.contains('continue') || inst.contains('drive') || inst.contains('head') || inst.contains('east') || inst.contains('west') || inst.contains('north') || inst.contains('south')) {
+      return Icons.straight_rounded;
+    }
+    return Icons.straight_rounded;
   }
 }
 

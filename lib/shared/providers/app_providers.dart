@@ -5,6 +5,9 @@ import '../models/parking_space.dart';
 import '../models/booking.dart';
 import '../models/user_profile.dart';
 import '../models/wallet_transaction.dart';
+import '../models/offer.dart';
+import '../models/support_ticket.dart';
+import '../models/chat_conversation.dart';
 
 // User Role Provider: 'user' (Seeker) vs 'partner' (Owner)
 final currentRoleProvider = StateProvider<String>((ref) => 'user');
@@ -129,4 +132,23 @@ final userVehiclesStreamProvider = StreamProvider<List<Vehicle>>((ref) {
   final user = ref.watch(userProfileProvider);
   return FirebaseRtdbService.streamUserVehicles(user.uid);
 });
+
+// Promotional Offers & Coupons Live Realtime Stream Provider
+final offersStreamProvider = StreamProvider<List<Offer>>((ref) {
+  return FirebaseRtdbService.subscribeOffers();
+});
+
+// User Support Tickets Live Realtime Stream Provider
+final userSupportTicketsStreamProvider = StreamProvider<List<SupportTicket>>((ref) {
+  final user = ref.watch(userProfileProvider);
+  return FirebaseRtdbService.streamUserSupportTickets(user.uid);
+});
+
+// Realtime User Conversations Stream Provider
+final conversationsStreamProvider = StreamProvider<List<ChatConversation>>((ref) {
+  final user = ref.watch(userProfileProvider);
+  final role = ref.watch(currentRoleProvider);
+  return FirebaseRtdbService.streamUserConversations(user.uid, isPartner: role == 'partner');
+});
+
 

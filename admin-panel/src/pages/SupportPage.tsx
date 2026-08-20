@@ -15,13 +15,16 @@ import {
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Modal } from '../components/common/Modal';
 import { FirebaseAdminService } from '../services/firebaseService';
-import { SupportTicket } from '../types';
+import { SupportTicket, SupportMessage } from '../types';
 
 export const SupportPage: React.FC = () => {
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'open' | 'resolved' | 'all'>('open');
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+  const [ticketMessages, setTicketMessages] = useState<SupportMessage[]>([]);
+  const [replyText, setReplyText] = useState('');
+  const [isSendingReply, setIsSendingReply] = useState(false);
   const [newTicketModal, setNewTicketModal] = useState(false);
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [refundAmount, setRefundAmount] = useState<number>(0);
@@ -39,6 +42,15 @@ export const SupportPage: React.FC = () => {
     const unsub = FirebaseAdminService.subscribeSupportTickets(setTickets);
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    if (!selectedTicket) {
+      setTicketMessages([]);
+      return;
+    }
+    const unsub = FirebaseAdminService.subscribeTicketMessages(selectedTicket.id, setTicketMessages);
+    return () => unsub();
+  }, [selectedTicket?.id]);
 
   const filteredTickets = tickets.filter((t) => {
     const query = searchQuery.toLowerCase().trim();
@@ -82,6 +94,25 @@ export const SupportPage: React.FC = () => {
       console.error('Resolve ticket error:', e);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleSendReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!replyText.trim() || !selectedTicket) return;
+    setIsSendingReply(true);
+    try {
+      await FirebaseAdminService.sendTicketMessage(selectedTicket.id, {
+        senderId: 'admin_support',
+        senderName: 'Mee Parking Support Agent',
+        senderRole: 'admin',
+        text: replyText.trim(),
+      });
+      setReplyText('');
+    } catch (e) {
+      console.error('Send ticket reply error:', e);
+    } finally {
+      setIsSendingReply(false);
     }
   };
 
@@ -253,25 +284,102 @@ export const SupportPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Ticket Details & Resolution Modal */}
+      {/* Ticket Details & Live 2-Way Chat Modal */}
       {selectedTicket && (
         <Modal
           isOpen={Boolean(selectedTicket)}
           onClose={() => setSelectedTicket(null)}
           title={`Ticket #${selectedTicket.id.slice(-6).toUpperCase()}: ${selectedTicket.subject}`}
-          subtitle={`Submitted by ${selectedTicket.userName}`}
+          subtitle={`Submitted by ${selectedTicket.userName} (${selectedTicket.userRole || 'User'})`}
         >
-          <div className="space-y-5 text-xs text-slate-700">
+          <div className="space-y-4 text-xs text-slate-700 max-h-[80vh] overflow-y-auto pr-1">
+            {/* Ticket Info Box */}
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
-              <div className="flex justify-between">
-                <span className="font-bold text-slate-400 uppercase text-[10px]">CATEGORY & PRIORITY</span>
-                <span className="font-bold text-slate-900 capitalize">
-                  {selectedTicket.category} • Priority {selectedTicket.priority}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-bold text-slate-400 uppercase text-[10px]">
+                  CATEGORY: <span className="text-slate-800 font-bold uppercase">{selectedTicket.category}</span> • PRIORITY:{' '}
+                  <span className="text-slate-800 font-bold uppercase">{selectedTicket.priority}</span>
                 </span>
+                <StatusBadge status={selectedTicket.status} />
               </div>
-              <p className="text-slate-800 text-xs leading-relaxed pt-1 border-t border-slate-200">
+              <p className="text-slate-800 text-xs leading-relaxed pt-2 border-t border-slate-200 font-medium">
                 {selectedTicket.description}
               </p>
+              <div className="text-[10px] text-slate-400 flex items-center gap-3 pt-1">
+                <span>User ID: {selectedTicket.userId || 'N/A'}</span>
+                {selectedTicket.userPhone && <span>Phone: {selectedTicket.userPhone}</span>}
+                {selectedTicket.userEmail && <span>Email: {selectedTicket.userEmail}</span>}
+              </div>
+            </div>
+
+            {/* Live 2-Way Chat Stream */}
+            <div className="border border-slate-200 rounded-xl p-4 bg-white space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-2 font-bold text-slate-800">
+                  <MessageSquare className="w-4 h-4 text-purple-600" />
+                  <span>Live Support Chat with Customer</span>
+                </div>
+                <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-bold">
+                  ● Realtime Live
+                </span>
+              </div>
+
+              {/* Message Feed */}
+              <div className="space-y-2.5 max-h-56 min-h-[120px] overflow-y-auto p-2 bg-slate-50 rounded-xl">
+                {ticketMessages.length === 0 ? (
+                  <div className="py-8 text-center text-slate-400">
+                    <p className="font-medium">No messages in this chat thread yet.</p>
+                    <p className="text-[11px]">Send a reply below to start the live conversation with the customer.</p>
+                  </div>
+                ) : (
+                  ticketMessages.map((msg) => {
+                    const isAdmin = msg.senderRole === 'admin';
+                    return (
+                      <div
+                        key={msg.id}
+                        className={`flex flex-col ${isAdmin ? 'items-end' : 'items-start'}`}
+                      >
+                        <div className="flex items-center gap-1.5 mb-1 px-1">
+                          <span className="text-[10px] font-bold text-slate-500">
+                            {msg.senderName} {isAdmin && '🛡️ (Admin)'}
+                          </span>
+                          <span className="text-[9px] text-slate-400">
+                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <div
+                          className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed shadow-sm ${
+                            isAdmin
+                              ? 'bg-purple-600 text-white rounded-br-none'
+                              : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
+                          }`}
+                        >
+                          {msg.text}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Quick Reply Form */}
+              <form onSubmit={handleSendReply} className="flex gap-2 pt-1">
+                <input
+                  type="text"
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  placeholder="Type a message or response to customer..."
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                />
+                <button
+                  type="submit"
+                  disabled={isSendingReply || !replyText.trim()}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {isSendingReply ? 'Sending...' : 'Send'}
+                </button>
+              </form>
             </div>
 
             {/* Compensation / Wallet Credit section */}
@@ -302,13 +410,13 @@ export const SupportPage: React.FC = () => {
               <textarea
                 value={resolutionNotes}
                 onChange={(e) => setResolutionNotes(e.target.value)}
-                rows={3}
+                rows={2}
                 placeholder="Explain the actions taken to resolve this ticket..."
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
               />
             </div>
 
-            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setSelectedTicket(null)}

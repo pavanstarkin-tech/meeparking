@@ -6,10 +6,12 @@ import {
   ParkingSpace,
   PayoutRequest,
   SupportTicket,
+  SupportMessage,
   WalletTransaction,
   DashboardMetrics,
   AdminBasePricing,
   PartnerApprovalRequest,
+  Offer,
 } from '../types';
 
 export class FirebaseAdminService {
@@ -418,6 +420,62 @@ export class FirebaseAdminService {
     return newId;
   }
 
+  static subscribeTicketMessages(ticketId: string, callback: (messages: SupportMessage[]) => void): () => void {
+    const msgsRef = ref(db, `supportTickets/${ticketId}/messages`);
+    const unsubscribe = onValue(
+      msgsRef,
+      (snapshot) => {
+        const val = snapshot.val();
+        if (!val || typeof val !== 'object') {
+          callback([]);
+          return;
+        }
+        const list: SupportMessage[] = Object.entries(val).map(([id, raw]) => {
+          const m = raw as any;
+          return {
+            id: m.id || id,
+            senderId: m.senderId || 'admin',
+            senderName: m.senderName || 'Mee Parking Support',
+            senderRole: m.senderRole || 'admin',
+            text: m.text || '',
+            timestamp: m.timestamp || new Date().toISOString(),
+          };
+        });
+        list.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        callback(list);
+      },
+      (error) => {
+        console.error('Error streaming ticket messages:', error);
+        callback([]);
+      }
+    );
+    return () => unsubscribe();
+  }
+
+  static async sendTicketMessage(
+    ticketId: string,
+    message: { senderId: string; senderName: string; senderRole: 'admin' | 'user' | 'partner'; text: string }
+  ): Promise<void> {
+    const msgsRef = ref(db, `supportTickets/${ticketId}/messages`);
+    const newMsgRef = push(msgsRef);
+    const msgId = newMsgRef.key || `MSG_${Date.now()}`;
+    const timestamp = new Date().toISOString();
+
+    await set(newMsgRef, {
+      id: msgId,
+      ...message,
+      timestamp,
+    });
+
+    // Update ticket's lastMessage and updatedAt and set to in_progress if currently open
+    const ticketRef = ref(db, `supportTickets/${ticketId}`);
+    await update(ticketRef, {
+      lastMessage: message.text,
+      updatedAt: timestamp,
+      status: 'in_progress',
+    });
+  }
+
   // ==========================================
   // 7. DASHBOARD METRICS CALCULATION
   // ==========================================
@@ -603,5 +661,121 @@ export class FirebaseAdminService {
       isActive: false,
       rejectionReason: reason,
     });
+  }
+
+  // ==========================================
+  // 9. PROMOTIONS, OFFERS & COUPONS
+  // ==========================================
+  static subscribeOffers(callback: (offers: Offer[]) => void): () => void {
+    const offersRef = ref(db, 'offers');
+    const unsubscribe = onValue(
+      offersRef,
+      (snapshot) => {
+        const val = snapshot.val();
+        if (!val || typeof val !== 'object') {
+          // If empty, seed default platform offers
+          this.seedInitialOffersIfEmpty();
+          callback([]);
+          return;
+        }
+        const list: Offer[] = Object.entries(val).map(([id, data]) => {
+          const item = data as any;
+          return {
+            id: item.id || id,
+            code: (item.code || id).toUpperCase(),
+            title: item.title || 'Special Discount',
+            description: item.description || '',
+            discountType: item.discountType || 'percentage',
+            discountValue: Number(item.discountValue) || 0,
+            maxDiscount: item.maxDiscount ? Number(item.maxDiscount) : undefined,
+            minBookingAmount: item.minBookingAmount ? Number(item.minBookingAmount) : 0,
+            category: item.category || 'all',
+            isActive: item.isActive !== false,
+            validTill: item.validTill,
+            color: item.color || '#7C3AED',
+            createdAt: item.createdAt || new Date().toISOString(),
+          };
+        });
+        list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        callback(list);
+      },
+      (error) => {
+        console.error('Error streaming offers:', error);
+        callback([]);
+      }
+    );
+    return () => unsubscribe();
+  }
+
+  static async seedInitialOffersIfEmpty(): Promise<void> {
+    const offersRef = ref(db, 'offers');
+    const snap = await get(offersRef);
+    if (!snap.exists()) {
+      const initialOffers: Record<string, any> = {
+        FIRST50: {
+          id: 'FIRST50',
+          code: 'FIRST50',
+          title: '50% OFF First Booking',
+          description: 'Get 50% discount up to ₹100 on your first parking reservation.',
+          discountType: 'percentage',
+          discountValue: 50,
+          maxDiscount: 100,
+          minBookingAmount: 50,
+          category: 'first_booking',
+          isActive: true,
+          color: '#7C3AED',
+          createdAt: new Date().toISOString(),
+        },
+        WEEKEND20: {
+          id: 'WEEKEND20',
+          code: 'WEEKEND20',
+          title: '20% OFF Weekend Parking',
+          description: 'Save 20% on all Saturday & Sunday parking spot bookings.',
+          discountType: 'percentage',
+          discountValue: 20,
+          maxDiscount: 150,
+          minBookingAmount: 100,
+          category: 'weekend',
+          isActive: true,
+          color: '#2563EB',
+          createdAt: new Date().toISOString(),
+        },
+        EVFAST50: {
+          id: 'EVFAST50',
+          code: 'EVFAST50',
+          title: '₹50 Flat OFF EV Charging',
+          description: 'Flat ₹50 discount on EV charging enabled parking spaces.',
+          discountType: 'flat',
+          discountValue: 50,
+          minBookingAmount: 150,
+          category: 'ev',
+          isActive: true,
+          color: '#059669',
+          createdAt: new Date().toISOString(),
+        },
+      };
+      await set(offersRef, initialOffers);
+    }
+  }
+
+  static async createOrUpdateOffer(offer: Offer): Promise<void> {
+    const offerId = offer.id || offer.code.trim().toUpperCase() || `OFFER_${Date.now()}`;
+    const offerRef = ref(db, `offers/${offerId}`);
+    await set(offerRef, {
+      ...offer,
+      id: offerId,
+      code: offer.code.trim().toUpperCase(),
+      createdAt: offer.createdAt || new Date().toISOString(),
+    });
+  }
+
+  static async deleteOffer(offerId: string): Promise<void> {
+    const offerRef = ref(db, `offers/${offerId}`);
+    await set(offerRef, null);
+  }
+
+  static async toggleOfferStatus(offerId: string, isActive: boolean): Promise<void> {
+    const offerRef = ref(db, `offers/${offerId}`);
+    await update(offerRef, { isActive });
   }
 }

@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   ChevronRight,
   Coins,
+  Tag,
   X,
 } from 'lucide-react';
 
@@ -63,6 +64,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       name: 'Parking Spaces',
       path: '/listings',
       icon: ParkingSquare,
+    },
+    {
+      name: 'Offers & Promos',
+      path: '/offers',
+      icon: Tag,
     },
     {
       name: 'Base Pricing & Tariffs',

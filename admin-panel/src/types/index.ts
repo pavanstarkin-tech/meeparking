@@ -94,6 +94,15 @@ export interface PayoutRequest {
   notes?: string;
 }
 
+export interface SupportMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderRole: 'user' | 'partner' | 'admin';
+  text: string;
+  timestamp: string;
+}
+
 export interface SupportTicket {
   id: string;
   userId: string;
@@ -109,6 +118,8 @@ export interface SupportTicket {
   createdAt: string;
   updatedAt?: string;
   resolutionNotes?: string;
+  lastMessage?: string;
+  messages?: Record<string, SupportMessage>;
 }
 
 export interface WalletTransaction {
@@ -178,4 +189,20 @@ export interface PartnerApprovalRequest {
   };
   submittedAt: string;
   rejectionReason?: string;
+}
+
+export interface Offer {
+  id: string;
+  code: string;
+  title: string;
+  description: string;
+  discountType: 'percentage' | 'flat';
+  discountValue: number;
+  maxDiscount?: number;
+  minBookingAmount?: number;
+  category?: 'all' | 'first_booking' | 'weekend' | 'ev';
+  isActive: boolean;
+  validTill?: string;
+  color?: string;
+  createdAt?: string;
 }

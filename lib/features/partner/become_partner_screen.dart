@@ -84,25 +84,6 @@ class _BecomePartnerScreenState extends ConsumerState<BecomePartnerScreen> {
                 ),
                 child: Column(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.stars_rounded, color: Color(0xFFFBBF24), size: 16),
-                          SizedBox(width: 6),
-                          Text(
-                            'Earn With Your Vacant Space',
-                            style: TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
                     const Text(
                       'Turn Empty Parking\nInto Daily Income',
                       textAlign: TextAlign.center,
@@ -143,31 +124,17 @@ class _BecomePartnerScreenState extends ConsumerState<BecomePartnerScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFECFDF5),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(Icons.calculate_outlined, color: AppColors.greenSuccess, size: 22),
+                        Text(
+                          'Interactive Earnings Estimator',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
-                        const SizedBox(width: 10),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Interactive Earnings Estimator',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                              ),
-                              Text(
-                                'Adjust sliders to estimate your potential income',
-                                style: TextStyle(fontSize: 11, color: AppColors.textSecondaryLight),
-                              ),
-                            ],
-                          ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Adjust sliders to estimate your potential income',
+                          style: TextStyle(fontSize: 11, color: AppColors.textSecondaryLight),
                         ),
                       ],
                     ),
@@ -375,59 +342,6 @@ class _BecomePartnerScreenState extends ConsumerState<BecomePartnerScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Partner Benefits Cards (Zero dead gap, natural hug content)
-              const Text(
-                'Why Host on MeeParking?',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _buildBenefitCard(
-                      title: 'Instant Payouts',
-                      description: 'Direct deposits to your bank or UPI wallet with zero delay.',
-                      icon: Icons.account_balance_wallet_outlined,
-                      iconColor: const Color(0xFF10B981),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildBenefitCard(
-                      title: 'Verified Users',
-                      description: 'Only OTP & ID-verified vehicle owners can book.',
-                      icon: Icons.verified_user_outlined,
-                      iconColor: const Color(0xFF3B82F6),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _buildBenefitCard(
-                      title: 'Calendar Control',
-                      description: 'Block slots anytime for your own vehicles.',
-                      icon: Icons.event_available_outlined,
-                      iconColor: const Color(0xFFF59E0B),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildBenefitCard(
-                      title: '24/7 Assistance',
-                      description: 'Dedicated partner helpdesk for check-ins & support.',
-                      icon: Icons.support_agent_outlined,
-                      iconColor: const Color(0xFF8B5CF6),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-
               // Interactive FAQ Section
               const Text(
                 'Frequently Asked Questions',
@@ -595,60 +509,6 @@ class _BecomePartnerScreenState extends ConsumerState<BecomePartnerScreen> {
     );
   }
 
-  Widget _buildBenefitCard({
-    required String title,
-    required String description,
-    required IconData icon,
-    required Color iconColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: iconColor.withOpacity(0.18), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: iconColor.withOpacity(0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimaryLight,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            description,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey.shade600,
-              height: 1.25,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildFaqItem({
     required int index,

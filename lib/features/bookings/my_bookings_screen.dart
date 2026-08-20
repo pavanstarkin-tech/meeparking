@@ -285,6 +285,412 @@ class _MyBookingsScreenState extends ConsumerState<MyBookingsScreen> {
     );
   }
 
+  void _showMarkReachedDialog(Booking booking) {
+    bool isProcessing = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                boxShadow: [
+                  BoxShadow(color: Colors.black26, blurRadius: 20, offset: Offset(0, -4)),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Drag handle
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4F46E5).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(Icons.local_parking_rounded, color: Color(0xFF4F46E5), size: 26),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Arrived at Parking Spot?',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimaryLight),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Confirm your arrival to start your parking session',
+                              style: TextStyle(fontSize: 12, color: AppColors.textSecondaryLight),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Booking summary container
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF9FAFB),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildRefundRow('Parking Location', booking.spaceTitle, isBold: true),
+                        const Divider(height: 16),
+                        _buildRefundRow('Vehicle Number', booking.vehicleNumber),
+                        const Divider(height: 16),
+                        _buildRefundRow('Time Slot', '${booking.bookingDate}, ${booking.timeSlot}'),
+                        const Divider(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Entry / Check-in OTP',
+                              style: TextStyle(fontSize: 12.5, color: Color(0xFF4F46E5), fontWeight: FontWeight.bold),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF4F46E5).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                booking.entryOtp,
+                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 2, color: Color(0xFF4F46E5)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Info box
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEEF2FF),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFC7D2FE)),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.info_outline, color: Color(0xFF4338CA), size: 18),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Make sure your vehicle is safely parked in the designated parking bay before confirming.',
+                            style: TextStyle(fontSize: 11.5, color: Color(0xFF3730A3), height: 1.3),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Actions
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: isProcessing ? null : () => Navigator.of(ctx).pop(),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: Colors.grey.shade300),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                          ),
+                          child: const Text('Not Yet', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: isProcessing
+                              ? null
+                              : () async {
+                                  setModalState(() => isProcessing = true);
+                                  try {
+                                    await FirebaseRtdbService.verifyBookingEntryOtp(booking.id, booking.entryOtp);
+                                    if (ctx.mounted) {
+                                      Navigator.of(ctx).pop();
+                                    }
+                                    if (mounted) {
+                                      ref.invalidate(userBookingsProvider);
+                                      _showTopToast('🚗 Parking Started! Marked as Parked.');
+                                    }
+                                  } catch (e) {
+                                    setModalState(() => isProcessing = false);
+                                    if (mounted) {
+                                      _showTopToast('Error checking in: $e', isError: true);
+                                    }
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4F46E5),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            elevation: 0,
+                          ),
+                          child: isProcessing
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                                )
+                              : const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.check_circle_outline, size: 18, color: Colors.white),
+                                    SizedBox(width: 6),
+                                    Text('Confirm & Park', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showMarkCompletedDialog(Booking booking) {
+    bool isProcessing = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                boxShadow: [
+                  BoxShadow(color: Colors.black26, blurRadius: 20, offset: Offset(0, -4)),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Drag handle
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 26),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Complete Parking Session?',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimaryLight),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Confirm your exit from the parking spot',
+                              style: TextStyle(fontSize: 12, color: AppColors.textSecondaryLight),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Booking summary container
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF9FAFB),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildRefundRow('Parking Location', booking.spaceTitle, isBold: true),
+                        const Divider(height: 16),
+                        _buildRefundRow('Vehicle Number', booking.vehicleNumber),
+                        const Divider(height: 16),
+                        _buildRefundRow('Total Paid', '₹${booking.totalAmount.toStringAsFixed(1)}', isBold: true, valueColor: AppColors.greenSuccess),
+                        const Divider(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Exit / Completion OTP',
+                              style: TextStyle(fontSize: 12.5, color: Color(0xFF10B981), fontWeight: FontWeight.bold),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                booking.exitOtp,
+                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 2, color: Color(0xFF10B981)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Reminder Box
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFA7F3D0)),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.check_circle_outline, color: Color(0xFF047857), size: 18),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Please make sure you have retrieved your vehicle and all personal belongings before completing.',
+                            style: TextStyle(fontSize: 11.5, color: Color(0xFF065F46), height: 1.3),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Actions
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: isProcessing ? null : () => Navigator.of(ctx).pop(),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: Colors.grey.shade300),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                          ),
+                          child: const Text('Go Back', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: isProcessing
+                              ? null
+                              : () async {
+                                  setModalState(() => isProcessing = true);
+                                  try {
+                                    await FirebaseRtdbService.completeBookingParking(booking.id);
+                                    if (ctx.mounted) {
+                                      Navigator.of(ctx).pop();
+                                    }
+                                    if (mounted) {
+                                      ref.invalidate(userBookingsProvider);
+                                      _showTopToast('✅ Parking Completed! Thank you for using MeeParking.');
+                                    }
+                                  } catch (e) {
+                                    setModalState(() => isProcessing = false);
+                                    if (mounted) {
+                                      _showTopToast('Error completing session: $e', isError: true);
+                                    }
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            elevation: 0,
+                          ),
+                          child: isProcessing
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                                )
+                              : const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.task_alt_rounded, size: 18, color: Colors.white),
+                                    SizedBox(width: 6),
+                                    Text('Complete Parking', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bookingsAsync = ref.watch(userBookingsProvider);
@@ -630,19 +1036,11 @@ class _MyBookingsScreenState extends ConsumerState<MyBookingsScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () async {
+                onPressed: () {
                   if (isUpcoming) {
-                    await FirebaseRtdbService.verifyBookingEntryOtp(booking.id, booking.entryOtp);
-                    if (mounted) {
-                      ref.invalidate(userBookingsProvider);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🚗 Parking Started! Vehicle marked as Parked.'), backgroundColor: AppColors.greenSuccess));
-                    }
+                    _showMarkReachedDialog(booking);
                   } else if (isParked) {
-                    await FirebaseRtdbService.completeBookingParking(booking.id);
-                    if (mounted) {
-                      ref.invalidate(userBookingsProvider);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Parking Completed! Thank you for using MeeParking.'), backgroundColor: AppColors.greenSuccess));
-                    }
+                    _showMarkCompletedDialog(booking);
                   }
                 },
                 icon: Icon(isParked ? Icons.check_circle : Icons.local_parking_rounded, size: 16, color: Colors.white),

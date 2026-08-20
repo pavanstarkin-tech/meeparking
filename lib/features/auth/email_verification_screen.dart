@@ -134,89 +134,48 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          // Top Right Ambient Gradient Orb
-          Positioned(
-            top: -80,
-            right: -60,
-            child: Container(
-              width: 280,
-              height: 280,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFF7C3AED).withOpacity(0.12),
-                    const Color(0xFF6B2D9B).withOpacity(0.02),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Bottom Left Ambient Gradient Orb
-          Positioned(
-            bottom: -60,
-            left: -60,
-            child: Container(
-              width: 240,
-              height: 240,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFF8B3DCC).withOpacity(0.10),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                physics: const ClampingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Brand Logo Header
-                    Center(
-                      child: Column(
-                        children: [
-                          Image.asset(
-                            'assets/mee_parking_logo.png',
-                            width: 65,
-                            height: 65,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => const Icon(
-                              Icons.local_parking_rounded,
-                              size: 44,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Image.asset(
-                            'assets/mee_parking_text_logo.png',
-                            width: 120,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => const Text(
-                              'Mee Parking',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ),
-                        ],
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Brand Logo Header
+                Center(
+                  child: Column(
+                    children: [
+                      Image.asset(
+                        'assets/mee_parking_logo.png',
+                        width: 65,
+                        height: 65,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.local_parking_rounded,
+                          size: 44,
+                          color: AppColors.primary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
+                      const SizedBox(height: 4),
+                      Image.asset(
+                        'assets/mee_parking_text_logo.png',
+                        width: 120,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Text(
+                          'Mee Parking',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
 
                     // Verification Main Container Card
                     Container(
@@ -444,8 +403,6 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
               ),
             ),
           ),
-        ],
-      ),
     );
   }
 }

@@ -5,6 +5,7 @@ import '../../core/services/firebase_rtdb_service.dart';
 import '../../shared/models/booking.dart';
 import '../../shared/models/parking_space.dart';
 import '../../shared/models/user_profile.dart';
+import '../../shared/models/offer.dart';
 import '../../shared/providers/app_providers.dart';
 import 'booking_confirmed_screen.dart';
 
@@ -53,6 +54,9 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
   ];
 
   bool _isProcessing = false;
+  final TextEditingController _couponCtrl = TextEditingController();
+  Offer? _appliedOffer;
+  String? _couponError;
 
   void _showChangeVehicleDialog(List<Vehicle> vehicles) {
     showModalBottomSheet(
@@ -106,9 +110,12 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
             type: widget.vehicleType.contains('2') ? 'bike' : 'car',
           );
 
-    final totalAmt = widget.initialAmount > 0
+    final rawAmt = widget.initialAmount > 0
         ? widget.initialAmount
         : widget.space.pricing.hourly;
+
+    final discount = _appliedOffer != null ? _appliedOffer!.calculateDiscount(rawAmt) : 0.0;
+    final finalPayable = (rawAmt - discount).clamp(0.0, double.infinity);
 
     final booking = Booking(
       id: 'MEE${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}',
@@ -121,7 +128,9 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
       vehicleType: widget.vehicleType,
       bookingDate: '${_dates[_selectedDateIdx]['day']} ${_dates[_selectedDateIdx]['date']} 2026',
       timeSlot: '${_timeSlots[_selectedTimeIdx]} (${widget.bookingType})',
-      totalAmount: totalAmt,
+      totalAmount: finalPayable,
+      couponCode: _appliedOffer?.code,
+      discountAmount: discount > 0 ? discount : null,
       status: 'upcoming',
       createdAt: DateTime.now().toIso8601String(),
     );
@@ -152,9 +161,15 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
             type: widget.vehicleType.contains('2') ? 'bike' : 'car',
           );
 
-    final double totalAmt = widget.initialAmount > 0
+    final double rawAmt = widget.initialAmount > 0
         ? widget.initialAmount
         : widget.space.pricing.hourly;
+
+    final offersAsync = ref.watch(offersStreamProvider);
+    final allOffers = offersAsync.asData?.value ?? [];
+
+    final double discount = _appliedOffer != null ? _appliedOffer!.calculateDiscount(rawAmt) : 0.0;
+    final double finalPayable = (rawAmt - discount).clamp(0.0, double.infinity);
 
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
@@ -264,7 +279,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
                     ),
                   ),
                   Text(
-                    '₹${totalAmt.toInt()} Total',
+                    '₹${rawAmt.toInt()} Base',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -379,6 +394,138 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: 18),
+
+              // Coupon / Promo Code Section
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.local_offer_outlined, color: AppColors.primary, size: 16),
+                      SizedBox(width: 6),
+                      Text(
+                        'Have a Promo Code?',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  if (_appliedOffer != null)
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _appliedOffer = null;
+                          _couponCtrl.clear();
+                          _couponError = null;
+                        });
+                      },
+                      child: const Text(
+                        'Remove',
+                        style: TextStyle(color: AppColors.redError, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              if (_appliedOffer != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '🎉 Coupon "${_appliedOffer!.code}" Applied! Saving ₹${discount.toInt()}',
+                          style: const TextStyle(
+                            color: Color(0xFF065F46),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 42,
+                        child: TextField(
+                          controller: _couponCtrl,
+                          textCapitalization: TextCapitalization.characters,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                          decoration: InputDecoration(
+                            hintText: 'Enter coupon code',
+                            hintStyle: const TextStyle(fontSize: 12, color: Colors.grey),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey.shade300),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey.shade300),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppColors.primary),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      height: 42,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          final entered = _couponCtrl.text.trim().toUpperCase();
+                          if (entered.isEmpty) return;
+
+                          final matched = allOffers.cast<Offer?>().firstWhere(
+                                (o) => o?.code == entered && o?.isActive == true,
+                                orElse: () => null,
+                              );
+
+                          if (matched == null) {
+                            setState(() => _couponError = 'Invalid or expired coupon "$entered"');
+                          } else if (rawAmt < matched.minBookingAmount) {
+                            setState(() => _couponError = 'Min spend ₹${matched.minBookingAmount.toInt()} required for this coupon.');
+                          } else {
+                            setState(() {
+                              _appliedOffer = matched;
+                              _couponError = null;
+                            });
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          elevation: 0,
+                        ),
+                        child: const Text('Apply', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_couponError != null) ...[
+                  const SizedBox(height: 6),
+                  Text(_couponError!, style: const TextStyle(fontSize: 11, color: AppColors.redError, fontWeight: FontWeight.w600)),
+                ],
+              ],
+
               const Spacer(),
 
               // Total Amount & Payment CTA
@@ -395,19 +542,36 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
                           color: AppColors.textSecondaryLight,
                         ),
                       ),
-                      Text(
-                        '₹${totalAmt.toInt()}',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimaryLight,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '₹${finalPayable.toInt()}',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimaryLight,
+                            ),
+                          ),
+                          if (discount > 0) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              '₹${rawAmt.toInt()}',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                decoration: TextDecoration.lineThrough,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                      const Text(
-                        'Includes all taxes',
+                      Text(
+                        discount > 0 ? 'Coupon discount applied' : 'Includes all taxes',
                         style: TextStyle(
                           fontSize: 10,
-                          color: AppColors.textSecondaryLight,
+                          color: discount > 0 ? const Color(0xFF10B981) : AppColors.textSecondaryLight,
+                          fontWeight: discount > 0 ? FontWeight.bold : FontWeight.normal,
                         ),
                       ),
                     ],

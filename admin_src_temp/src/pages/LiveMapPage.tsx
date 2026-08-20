@@ -27,7 +27,7 @@ const MAPBOX_TOKEN =
 
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
-// Generate a bold 3D polygon perimeter around center coordinates (45m - 75m wide)
+// Generate a fallback polygon perimeter around center coordinates (45m - 75m wide)
 const generateLotPolygon = (lng: number, lat: number, sqMeters: number = 300): number[][] => {
   const sideMeters = Math.max(45, Math.min(80, Math.sqrt(Math.max(600, sqMeters * 4))));
   const latOffset = (sideMeters / 2) / 111000;
@@ -40,6 +40,62 @@ const generateLotPolygon = (lng: number, lat: number, sqMeters: number = 300): n
     [lng - lngOffset, lat + latOffset],
     [lng - lngOffset, lat - latOffset], // Close polygon
   ];
+};
+
+// Parse and normalize polygon coordinates to Mapbox GeoJSON standard [lng, lat]
+const parseSpacePolygonGeoJSON = (space: ParkingSpace): number[][] => {
+  if (space.polygonCoordinates && space.polygonCoordinates.length >= 3) {
+    const pts: number[][] = space.polygonCoordinates.map((coord) => {
+      const p0 = Number(coord[0]);
+      const p1 = Number(coord[1]);
+
+      // Firebase stores points as [lat, lng] from Flutter
+      // Mapbox GeoJSON requires [lng, lat]
+      let lat = p0;
+      let lng = p1;
+
+      // In Indian coordinates (and global standard):
+      // If |p0| > 90, p0 was already longitude
+      if (Math.abs(p0) > 90) {
+        lng = p0;
+        lat = p1;
+      }
+
+      return [lng, lat];
+    });
+
+    // Ensure the linear ring is closed (first point === last point)
+    if (
+      pts.length > 0 &&
+      (pts[0][0] !== pts[pts.length - 1][0] || pts[0][1] !== pts[pts.length - 1][1])
+    ) {
+      pts.push([pts[0][0], pts[0][1]]);
+    }
+    return pts;
+  }
+
+  // Fallback if no custom polygon boundary is defined
+  const lat = Number(space.latitude);
+  const lng = Number(space.longitude);
+  return generateLotPolygon(lng, lat, space.totalLandSqMeters || 300);
+};
+
+// Calculate geographic center of polygon for precise marker pin placement
+const getPolygonCenter = (coords: number[][]): { lng: number; lat: number } => {
+  if (!coords || coords.length === 0) return { lng: 0, lat: 0 };
+  let sumLng = 0;
+  let sumLat = 0;
+  const isClosed =
+    coords.length > 1 &&
+    coords[0][0] === coords[coords.length - 1][0] &&
+    coords[0][1] === coords[coords.length - 1][1];
+  const count = isClosed ? coords.length - 1 : coords.length;
+
+  for (let i = 0; i < count; i++) {
+    sumLng += coords[i][0];
+    sumLat += coords[i][1];
+  }
+  return { lng: sumLng / count, lat: sumLat / count };
 };
 
 export const LiveMapPage: React.FC = () => {
@@ -90,7 +146,7 @@ export const LiveMapPage: React.FC = () => {
     };
   }, []);
 
-  // 2. Helper to safely add 3D layers
+  // 2. Helper to safely add 3D & boundary layers (matching Flutter app visual design)
   const ensure3DLayers = (map: mapboxgl.Map) => {
     // 3D City Buildings
     const layers = map.getStyle().layers;
@@ -134,7 +190,7 @@ export const LiveMapPage: React.FC = () => {
       );
     }
 
-    // Parking Lots 3D Source
+    // Parking Lots GeoJSON Source
     if (!map.getSource('parking-lots-3d-source')) {
       map.addSource('parking-lots-3d-source', {
         type: 'geojson',
@@ -142,7 +198,7 @@ export const LiveMapPage: React.FC = () => {
       });
     }
 
-    // Ground Highlight Layer (Base footprint)
+    // Ground Highlight Layer (Base property boundary fill)
     if (!map.getLayer('parking-lots-ground-fill')) {
       map.addLayer({
         id: 'parking-lots-ground-fill',
@@ -150,26 +206,26 @@ export const LiveMapPage: React.FC = () => {
         source: 'parking-lots-3d-source',
         paint: {
           'fill-color': ['get', 'color'],
-          'fill-opacity': 0.45,
+          'fill-opacity': ['get', 'fillOpacity'],
         },
       });
     }
 
-    // Ground Perimeter Line Layer
+    // Ground Perimeter Line Layer (Crisp boundary outline matching search_parking_screen)
     if (!map.getLayer('parking-lots-ground-line')) {
       map.addLayer({
         id: 'parking-lots-ground-line',
         type: 'line',
         source: 'parking-lots-3d-source',
         paint: {
-          'line-color': ['get', 'color'],
+          'line-color': ['get', 'borderColor'],
           'line-width': 3,
-          'line-opacity': 0.9,
+          'line-opacity': 0.95,
         },
       });
     }
 
-    // Sleek 3D Extruded Building Layer (Low profile so it never covers floating pins)
+    // 3D Extruded Building Layer (Low profile volumetric 3D footprint)
     if (!map.getLayer('parking-lots-3d-extrusion')) {
       map.addLayer({
         id: 'parking-lots-3d-extrusion',
@@ -179,12 +235,12 @@ export const LiveMapPage: React.FC = () => {
           'fill-extrusion-color': ['get', 'color'],
           'fill-extrusion-height': ['get', 'height'],
           'fill-extrusion-base': 0,
-          'fill-extrusion-opacity': 0.65,
+          'fill-extrusion-opacity': ['get', 'extrusionOpacity'],
         },
       });
 
-      // Click on 3D extrusion to select
-      map.on('click', 'parking-lots-3d-extrusion', (e) => {
+      // Click on polygon area to select
+      const handlePolygonClick = (e: mapboxgl.MapLayerMouseEvent) => {
         if (e.features && e.features[0]) {
           const spaceId = e.features[0].properties?.id;
           const found = spaces.find((s) => s.id === spaceId);
@@ -194,7 +250,10 @@ export const LiveMapPage: React.FC = () => {
             setIsCardDismissed(false);
           }
         }
-      });
+      };
+
+      map.on('click', 'parking-lots-3d-extrusion', handlePolygonClick);
+      map.on('click', 'parking-lots-ground-fill', handlePolygonClick);
     }
   };
 
@@ -239,7 +298,7 @@ export const LiveMapPage: React.FC = () => {
     map.setStyle(styleMap[mapStyle]);
   }, [mapStyle]);
 
-  // 4. Create & Manage Persistent Markers (Never destroyed on hover!)
+  // 4. Create & Manage Persistent Markers (Positioned at polygon centroid)
   const syncMarkers = (map: mapboxgl.Map, currentSpaces: ParkingSpace[]) => {
     if (!map) return;
 
@@ -259,16 +318,27 @@ export const LiveMapPage: React.FC = () => {
 
     // Add or retain markers
     currentSpaces.forEach((space) => {
-      const lat = Number(space.latitude);
-      const lng = Number(space.longitude);
+      const polygonCoords = parseSpacePolygonGeoJSON(space);
+      const center = getPolygonCenter(polygonCoords);
+      const lat = center.lat || Number(space.latitude);
+      const lng = center.lng || Number(space.longitude);
 
       if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return;
 
       hasValidCoords = true;
-      bounds.extend([lng, lat]);
 
-      // If marker already exists, do not recreate!
-      if (markersRef.current[space.id]) return;
+      // Extend bounds using full polygon boundary points
+      polygonCoords.forEach(([pLng, pLat]) => {
+        if (!isNaN(pLng) && !isNaN(pLat) && pLng !== 0 && pLat !== 0) {
+          bounds.extend([pLng, pLat]);
+        }
+      });
+
+      // If marker already exists, update position
+      if (markersRef.current[space.id]) {
+        markersRef.current[space.id].marker.setLngLat([lng, lat]);
+        return;
+      }
 
       const el = document.createElement('div');
       el.className = 'mapbox-parking-marker-root';
@@ -289,8 +359,8 @@ export const LiveMapPage: React.FC = () => {
         map.flyTo({
           center: [lng, lat],
           zoom: 17,
-          pitch: 60,
-          bearing: -20,
+          pitch: is3DMode ? 60 : 0,
+          bearing: is3DMode ? -20 : 0,
           essential: true,
         });
       });
@@ -307,7 +377,7 @@ export const LiveMapPage: React.FC = () => {
     }
   };
 
-  // 5. Update Marker Visuals & 3D Layer Data (Fast DOM Update, Zero Re-mounting)
+  // 5. Update Marker Visuals & Boundary Layer Data
   const updateVisuals = (
     map: mapboxgl.Map,
     currentSpaces: ParkingSpace[],
@@ -356,7 +426,7 @@ export const LiveMapPage: React.FC = () => {
       `;
     });
 
-    // 2. Update 3D GeoJSON source
+    // 2. Update GeoJSON source with accurate property boundary polygons
     update3DLayerData(map, currentSpaces, activeSelected);
   };
 
@@ -372,24 +442,38 @@ export const LiveMapPage: React.FC = () => {
     const features: GeoJSON.Feature[] = [];
 
     currentSpaces.forEach((space) => {
-      const lat = Number(space.latitude);
-      const lng = Number(space.longitude);
+      const polygonCoords = parseSpacePolygonGeoJSON(space);
+      const center = getPolygonCenter(polygonCoords);
+      const lat = center.lat || Number(space.latitude);
+      const lng = center.lng || Number(space.longitude);
       if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return;
 
       const isOpened = activeSelected?.id === space.id && !isCardDismissed;
+      const isHovered = hoveredSpace?.id === space.id && !isCardDismissed;
+      const hasSlots = space.availableSlots > 0;
+
+      // Color scheme matching Flutter app:
+      // Purple fill/border for standard listings, Emerald for selected, Red for full
       const plotColor = isOpened
         ? '#10B981' // Green when opened
-        : space.availableSlots > 0
-        ? '#8B5CF6' // Purple
+        : isHovered
+        ? '#8B5CF6' // Light Purple on hover
+        : hasSlots
+        ? '#7C3AED' // Primary AppColors.primary
         : '#EF4444';
 
-      // 8m-14m height for sleek 3D visibility that never blocks markers
-      const extrusionHeight = isOpened ? 14 : 10;
+      const borderColor = isOpened
+        ? '#059669'
+        : isHovered
+        ? '#7C3AED'
+        : hasSlots
+        ? '#6B2D9B'
+        : '#DC2626';
 
-      const polygonCoords =
-        space.polygonCoordinates && space.polygonCoordinates.length >= 4
-          ? space.polygonCoordinates
-          : generateLotPolygon(lng, lat, space.totalLandSqMeters || 300);
+      // Extrusion parameters
+      const extrusionHeight = is3DMode ? (isOpened ? 12 : 7) : 0;
+      const fillOpacity = isOpened ? 0.35 : 0.22;
+      const extrusionOpacity = is3DMode ? (isOpened ? 0.55 : 0.35) : 0;
 
       features.push({
         type: 'Feature',
@@ -397,7 +481,10 @@ export const LiveMapPage: React.FC = () => {
           id: space.id,
           title: space.title,
           color: plotColor,
+          borderColor: borderColor,
           height: extrusionHeight,
+          fillOpacity: fillOpacity,
+          extrusionOpacity: extrusionOpacity,
         },
         geometry: {
           type: 'Polygon',
@@ -513,14 +600,16 @@ export const LiveMapPage: React.FC = () => {
     setHoveredSpace(space);
     setIsCardDismissed(false);
     const map = mapInstanceRef.current;
-    const lat = Number(space.latitude);
-    const lng = Number(space.longitude);
+    const polygonCoords = parseSpacePolygonGeoJSON(space);
+    const center = getPolygonCenter(polygonCoords);
+    const lat = center.lat || Number(space.latitude);
+    const lng = center.lng || Number(space.longitude);
     if (map && !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
       map.flyTo({
         center: [lng, lat],
         zoom: 17,
-        pitch: 60,
-        bearing: -20,
+        pitch: is3DMode ? 60 : 0,
+        bearing: is3DMode ? -20 : 0,
         essential: true,
       });
     }

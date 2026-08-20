@@ -8,10 +8,10 @@ import '../../core/constants/app_colors.dart';
 import '../../core/services/firebase_rtdb_service.dart';
 import '../../shared/models/parking_space.dart';
 import '../../shared/providers/app_providers.dart';
-import 'package:flutter/services.dart';
 import '../search/search_parking_screen.dart';
 import '../parking/parking_details_screen.dart';
 import '../bookings/my_bookings_screen.dart';
+import '../offers/offers_screen.dart';
 import '../wallet/wallet_screen.dart';
 import '../profile/profile_screen.dart';
 import '../saved/saved_spots_screen.dart';
@@ -21,19 +21,19 @@ import '../partner/my_listings_screen.dart';
 import '../partner/earnings_screen.dart';
 import '../partner/partner_main_shell.dart';
 import '../chat/chats_list_screen.dart';
+import '../support/support_chat_screen.dart';
+import '../../shared/models/support_ticket.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
-  const HomeScreen({super.key});
+  final int initialTab;
+  const HomeScreen({super.key, this.initialTab = 0});
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  int _selectedTab = 0;
-  late final PageController _bannerPageController;
-  Timer? _bannerTimer;
-  int _currentBannerIndex = 0;
+  late int _selectedTab;
   double? _userLat;
   double? _userLng;
   bool _showAllSpotsFallback = false;
@@ -42,8 +42,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _bannerPageController = PageController(initialPage: 1000, viewportFraction: 0.93);
-    _startBannerAutoScroll();
+    _selectedTab = widget.initialTab;
     _fetchUserLocation();
   }
 
@@ -86,22 +85,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return '${dist.toStringAsFixed(1)} km';
   }
 
-  void _startBannerAutoScroll() {
-    _bannerTimer?.cancel();
-    _bannerTimer = Timer.periodic(const Duration(seconds: 3, milliseconds: 500), (timer) {
-      if (_bannerPageController.hasClients) {
-        _bannerPageController.nextPage(
-          duration: const Duration(milliseconds: 650),
-          curve: Curves.easeInOutCubic,
-        );
-      }
-    });
-  }
-
   @override
   void dispose() {
-    _bannerTimer?.cancel();
-    _bannerPageController.dispose();
     super.dispose();
   }
 
@@ -162,6 +147,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  String _formatRelativeTime(String? isoString, {String fallback = 'Recently'}) {
+    if (isoString == null || isoString.isEmpty) return fallback;
+    try {
+      final dt = DateTime.parse(isoString);
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+      if (diff.inMinutes < 1) return 'Just now';
+      if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+      if (diff.inHours < 24 && now.day == dt.day) return 'Today';
+      if (diff.inDays < 2) return 'Yesterday';
+      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${dt.day} ${months[dt.month - 1]}';
+    } catch (_) {
+      return fallback;
+    }
+  }
+
   List<Map<String, dynamic>> _getRealNotifications() {
     final notifications = <Map<String, dynamic>>[];
 
@@ -170,38 +172,79 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     bookingsAsync.whenData((bookings) {
       for (final b in bookings) {
         final bTimestamp = DateTime.tryParse(b.createdAt)?.millisecondsSinceEpoch ?? 0;
+        final timeStr = _formatRelativeTime(b.createdAt, fallback: b.bookingDate);
         if (b.status.toLowerCase() == 'cancelled') {
           notifications.add({
             'icon': Icons.cancel_outlined,
             'iconColor': AppColors.redError,
             'title': 'Booking Cancelled',
             'body': 'Reservation for ${b.vehicleNumber} at ${b.spaceTitle} was cancelled.',
-            'time': '${b.bookingDate}, ${b.timeSlot}',
+            'time': timeStr,
             'timestamp': bTimestamp,
+            'type': 'booking',
           });
         } else if (b.computedStatus == 'completed') {
           notifications.add({
             'icon': Icons.task_alt_rounded,
             'iconColor': AppColors.greenSuccess,
             'title': 'Booking Completed',
-            'body': 'Completed parking at ${b.spaceTitle}.',
-            'time': '${b.bookingDate}, ${b.timeSlot}',
+            'body': 'Completed parking for ${b.vehicleNumber} at ${b.spaceTitle}.',
+            'time': timeStr,
             'timestamp': bTimestamp,
+            'type': 'booking',
           });
         } else {
           notifications.add({
             'icon': Icons.confirmation_number_outlined,
             'iconColor': AppColors.primary,
             'title': 'Parking Reserved',
-            'body': 'Upcoming slot booked for ${b.vehicleNumber} at ${b.spaceTitle}.',
-            'time': '${b.bookingDate}, ${b.timeSlot}',
+            'body': 'Upcoming slot booked for ${b.vehicleNumber} at ${b.spaceTitle} (${b.bookingDate}, ${b.timeSlot}).',
+            'time': timeStr,
             'timestamp': bTimestamp,
+            'type': 'booking',
           });
         }
       }
     });
 
-    // 2. Real Wallet Transactions from RTDB
+    // 2. Real Host / Driver Chat Messages from RTDB
+    final chatsAsync = ref.read(conversationsStreamProvider);
+    chatsAsync.whenData((chats) {
+      for (final c in chats) {
+        final timeStr = _formatRelativeTime(c.lastMessageTime.toIso8601String());
+        notifications.add({
+          'icon': Icons.chat_bubble_rounded,
+          'iconColor': const Color(0xFF2563EB),
+          'title': 'Message from ${c.otherUserName}',
+          'body': '${c.lastMessage.isNotEmpty ? c.lastMessage : "Chat conversation active"} • ${c.spaceTitle}',
+          'time': timeStr,
+          'timestamp': c.lastMessageTime.millisecondsSinceEpoch,
+          'type': 'chat',
+          'chat': c,
+        });
+      }
+    });
+
+    // 3. Real Support Tickets & Live Dispute Updates
+    final ticketsAsync = ref.read(userSupportTicketsStreamProvider);
+    ticketsAsync.whenData((tickets) {
+      for (final t in tickets) {
+        final tDt = DateTime.tryParse(t.updatedAt ?? t.createdAt) ?? DateTime.now();
+        final timeStr = _formatRelativeTime(t.updatedAt ?? t.createdAt);
+        notifications.add({
+          'icon': Icons.headset_mic_rounded,
+          'iconColor': const Color(0xFF7C3AED),
+          'title': 'Support Ticket: ${t.subject}',
+          'body': 'Status: ${t.statusDisplay.toUpperCase()} • ${t.lastMessage != null && t.lastMessage!.isNotEmpty ? t.lastMessage : t.description}',
+          'time': timeStr,
+          'timestamp': tDt.millisecondsSinceEpoch,
+          'type': 'ticket',
+          'ticket': t,
+        });
+      }
+    });
+
+    // 4. Real Wallet Transactions from RTDB
     final walletTxAsync = ref.read(walletTransactionsProvider);
     walletTxAsync.whenData((txs) {
       for (final tx in txs) {
@@ -210,8 +253,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           'iconColor': tx.type == 'credit' ? AppColors.greenSuccess : Colors.blue,
           'title': tx.title.isNotEmpty ? tx.title : (tx.type == 'credit' ? 'Wallet Credited' : 'Wallet Debited'),
           'body': '₹${tx.amount.toStringAsFixed(1)} - ${tx.subtitle}',
-          'time': tx.date,
+          'time': tx.date.isNotEmpty ? tx.date : 'Recent',
           'timestamp': tx.timestamp,
+          'type': 'wallet',
         });
       }
     });
@@ -327,13 +371,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         separatorBuilder: (_, __) => const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           final item = realNotifs[index];
-                          return _buildNotificationItem(
-                            icon: item['icon'] as IconData,
-                            iconColor: item['iconColor'] as Color,
-                            title: item['title'] as String,
-                            body: item['body'] as String,
-                            time: item['time'] as String,
-                            isUnread: _hasUnreadNotifications,
+                          return InkWell(
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              final type = item['type'] as String?;
+                              if (type == 'booking') {
+                                setState(() => _selectedTab = 1);
+                              } else if (type == 'wallet') {
+                                setState(() => _selectedTab = 2);
+                              } else if (type == 'ticket' && item['ticket'] != null) {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => SupportChatScreen(ticket: item['ticket'] as SupportTicket),
+                                  ),
+                                );
+                              } else if (type == 'chat') {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const ChatsListScreen(),
+                                  ),
+                                );
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(14),
+                            child: _buildNotificationItem(
+                              icon: item['icon'] as IconData,
+                              iconColor: item['iconColor'] as Color,
+                              title: item['title'] as String,
+                              body: item['body'] as String,
+                              time: item['time'] as String,
+                              isUnread: _hasUnreadNotifications,
+                            ),
                           );
                         },
                       ),
@@ -380,15 +448,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    Text(
-                      time,
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        time,
+                        style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
+                      ),
                     ),
                   ],
                 ),
@@ -398,171 +476,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700, height: 1.25),
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showOffersSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-            boxShadow: [
-              BoxShadow(color: Colors.black26, blurRadius: 20, offset: Offset(0, -4)),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              const Row(
-                children: [
-                  Icon(Icons.local_offer_outlined, color: Colors.purple, size: 24),
-                  SizedBox(width: 10),
-                  Text(
-                    'Exclusive Parking Offers',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Copy promo codes and apply them at checkout for instant discounts.',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondaryLight),
-              ),
-              const SizedBox(height: 18),
-
-              // Coupon 1
-              _buildCouponCard(
-                code: 'FIRST50',
-                title: '50% OFF First Booking',
-                subtitle: 'Get 50% discount up to ₹100 on your first parking reservation.',
-                gradient: const [Color(0xFF7C3AED), Color(0xFF5B21B6)],
-              ),
-              const SizedBox(height: 10),
-
-              // Coupon 2
-              _buildCouponCard(
-                code: 'WEEKEND20',
-                title: '20% OFF Weekend Parking',
-                subtitle: 'Save 20% on all Saturday & Sunday parking spot bookings.',
-                gradient: const [Color(0xFF2563EB), Color(0xFF1E40AF)],
-              ),
-              const SizedBox(height: 10),
-
-              // Coupon 3
-              _buildCouponCard(
-                code: 'EVFAST50',
-                title: '₹50 OFF EV Charging',
-                subtitle: 'Flat ₹50 discount on EV charging enabled parking spaces.',
-                gradient: const [Color(0xFF059669), Color(0xFF047857)],
-              ),
-              const SizedBox(height: 18),
-
-              SizedBox(
-                width: double.infinity,
-                height: 46,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const SearchParkingScreen()),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    'Search & Book Parking',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildCouponCard({
-    required String code,
-    required String title,
-    required String subtitle,
-    required List<Color> gradient,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: gradient),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: gradient.first.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3)),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: const TextStyle(color: Colors.white70, fontSize: 11),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          GestureDetector(
-            onTap: () {
-              Clipboard.setData(ClipboardData(text: code));
-              _showTopToast('Promo code $code copied to clipboard! 📋');
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    code,
-                    style: TextStyle(color: gradient.first, fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(Icons.copy_rounded, color: gradient.first, size: 13),
-                ],
-              ),
             ),
           ),
         ],
@@ -730,247 +643,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
-            // Infinite Auto-Sliding Carousel for 2 Cards (Find Parking & EV Charging)
-            Column(
-              children: [
-                SizedBox(
-                  height: 155,
-                  child: PageView.builder(
-                    controller: _bannerPageController,
-                    onPageChanged: (index) {
-                      setState(() {
-                        _currentBannerIndex = index % 2;
-                      });
-                    },
-                    itemBuilder: (context, index) {
-                      final cardIndex = index % 2;
-                      if (cardIndex == 0) {
-                        // Card 0: Find Parking Card
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => const SearchParkingScreen()),
-                            );
-                          },
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 6),
-                            decoration: BoxDecoration(
-                              gradient: AppColors.primaryGradient,
-                              borderRadius: BorderRadius.circular(24),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x337C3AED),
-                                  blurRadius: 14,
-                                  offset: Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(24),
-                              child: Stack(
-                                children: [
-                                  Positioned(
-                                    right: 5,
-                                    bottom: -8,
-                                    top: -8,
-                                    child: Image.asset(
-                                      'assets/new-assets/parking.png',
-                                      width: 145,
-                                      fit: BoxFit.contain,
-                                      errorBuilder: (_, __, ___) => const Icon(
-                                        Icons.directions_car,
-                                        color: Colors.white24,
-                                        size: 70,
-                                      ),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(20),
-                                    child: SizedBox(
-                                      width: 165,
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          const Text(
-                                            'Find Parking',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          const Text(
-                                            'Find & book parking in seconds',
-                                            style: TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 12,
-                                              height: 1.3,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 10),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: Colors.white.withOpacity(0.2),
-                                              borderRadius: BorderRadius.circular(10),
-                                            ),
-                                            child: const Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(
-                                                  'Book Spot',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                                SizedBox(width: 4),
-                                                Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 12),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      } else {
-                        // Card 1: EV Charging Card
-                        return GestureDetector(
-                          onTap: () {
-                            ref.read(evFilterProvider.notifier).state = true;
-                            Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => const SearchParkingScreen()),
-                            );
-                          },
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 6),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF5E258D), Color(0xFF3B155B)],
-                              ),
-                              borderRadius: BorderRadius.circular(24),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x335E258D),
-                                  blurRadius: 14,
-                                  offset: Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(24),
-                              child: Stack(
-                                children: [
-                                  Positioned(
-                                    right: 2,
-                                    bottom: -8,
-                                    top: -8,
-                                    child: Image.asset(
-                                      'assets/new-assets/ev charging.png',
-                                      width: 130,
-                                      fit: BoxFit.contain,
-                                      errorBuilder: (_, __, ___) => const Icon(
-                                        Icons.ev_station,
-                                        color: Colors.white24,
-                                        size: 70,
-                                      ),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(20),
-                                    child: SizedBox(
-                                      width: 165,
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          const Text(
-                                            'EV Charging',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          const Text(
-                                            'Locate fast EV charging stations near you',
-                                            style: TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 12,
-                                              height: 1.3,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 10),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: Colors.white.withOpacity(0.2),
-                                              borderRadius: BorderRadius.circular(10),
-                                            ),
-                                            child: const Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(
-                                                  'Explore EV',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                                SizedBox(width: 4),
-                                                Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 12),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                // Carousel Dots Indicator (2 Dots)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(2, (index) {
-                    final bool isActive = _currentBannerIndex == index;
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      width: isActive ? 18 : 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: isActive ? AppColors.primary : Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    );
-                  }),
-                ),
-              ],
+            // Hero Action Cards (Find Parking & EV Charging)
+            _buildHeroCard(
+              title: 'Find Parking',
+              subtitle: 'Book a parking space',
+              imagePath: 'assets/new-assets/parking.png',
+              imageWidth: 145,
+              imageRight: 10,
+              imageTop: 4,
+              imageBottom: 4,
+              onTap: () {
+                ref.read(evFilterProvider.notifier).state = false;
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SearchParkingScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            _buildHeroCard(
+              title: 'EV Charging',
+              subtitle: 'Find EV charging stations',
+              imagePath: 'assets/new-assets/ev charging.png',
+              imageWidth: 95,
+              imageRight: 20,
+              imageTop: 6,
+              imageBottom: 6,
+              onTap: () {
+                ref.read(evFilterProvider.notifier).state = true;
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SearchParkingScreen()),
+                );
+              },
             ),
             const SizedBox(height: 24),
 
@@ -979,10 +684,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildQuickPill('Offers', Icons.local_offer_outlined, Colors.purple, () {
-                  _showOffersSheet(context);
+                  OffersBottomSheet.show(context);
                 }),
                 _buildQuickPill('Favourites', Icons.favorite_border, Colors.pink, () {
-                  SavedSpotsBottomSheet.show(context);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SavedSpotsScreen()),
+                  );
                 }),
                 _buildQuickPill('Recent', Icons.history, Colors.blue, () {
                   setState(() => _selectedTab = 1);
@@ -1343,35 +1050,110 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         ),
                       ),
-                      // Distance chip
+                      // Distance chip on right
                       if (distLabel.isNotEmpty)
                         Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.near_me_outlined, size: 12, color: AppColors.textSecondaryLight),
-                            const SizedBox(width: 2),
+                            const Icon(Icons.near_me_outlined, size: 13, color: AppColors.primary),
+                            const SizedBox(width: 3),
                             Text(
                               distLabel,
-                              style: const TextStyle(fontSize: 11, color: AppColors.textSecondaryLight, fontWeight: FontWeight.w600),
+                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondaryLight, fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryGradient.colors.first.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Text(
-                          'Book Spot',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
-                        ),
-                      ),
                     ],
                   ),
                 ],
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeroCard({
+    required String title,
+    required String subtitle,
+    required String imagePath,
+    required VoidCallback onTap,
+    double imageWidth = 140,
+    double imageRight = 10,
+    double imageTop = 4,
+    double imageBottom = 4,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 108,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: const Color(0xFF6B27DE),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF6E28D9), Color(0xFF591AB7)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF6B27DE).withOpacity(0.25),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              Positioned(
+                right: imageRight,
+                top: imageTop,
+                bottom: imageBottom,
+                child: Image.asset(
+                  imagePath,
+                  width: imageWidth,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.local_parking_rounded,
+                    color: Colors.white24,
+                    size: 50,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 19.5,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.88),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
