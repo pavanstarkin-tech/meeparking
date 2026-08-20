@@ -7,6 +7,7 @@ import { UserProfile, SupportTicket, PayoutRequest } from '../../types';
 
 export const AdminLayout: React.FC = () => {
   const location = useLocation();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
@@ -22,6 +23,11 @@ export const AdminLayout: React.FC = () => {
       unsubPayouts();
     };
   }, []);
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [location.pathname]);
 
   const pendingApprovalsCount = users.filter((u) => u.role === 'partner' && (!u.isApproved || u.status === 'pending')).length;
   const openTicketsCount = tickets.filter((t) => t.status === 'open' || t.status === 'in_progress').length;
@@ -61,15 +67,22 @@ export const AdminLayout: React.FC = () => {
     <div className="min-h-screen bg-[#F8FAFC] flex">
       {/* Sidebar Navigation */}
       <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
         pendingApprovalsCount={pendingApprovalsCount}
         openTicketsCount={openTicketsCount}
         pendingPayoutsCount={pendingPayoutsCount}
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 ml-64 flex flex-col min-w-0">
-        <Header title={title} subtitle={subtitle} unreadCount={openTicketsCount + pendingApprovalsCount} />
-        <main className="p-8 flex-1 overflow-x-hidden">
+      <div className="flex-1 lg:ml-64 ml-0 flex flex-col min-w-0 transition-all duration-200">
+        <Header
+          title={title}
+          subtitle={subtitle}
+          unreadCount={openTicketsCount + pendingApprovalsCount}
+          onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+        />
+        <main className="p-4 sm:p-6 lg:p-8 flex-1 overflow-x-hidden">
           <Outlet />
         </main>
       </div>
