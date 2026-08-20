@@ -41,7 +41,9 @@ export const AdminLayout: React.FC = () => {
       case '/partners':
         return { title: 'Partner Onboarding & KYC Approvals', subtitle: 'Review host applications, verify bank accounts and approve listings' };
       case '/listings':
-        return { title: 'Parking Spaces & Approvals', subtitle: 'Verify newly added parking listings, slot quotas and pricing' };
+        return { title: 'Parking Spaces & Approvals', subtitle: 'Verify newly added parking listings, slot quotas and status' };
+      case '/pricing':
+        return { title: 'Base Pricing & Tariffs', subtitle: 'Configure dynamic platform tariffs and review partner space requests' };
       case '/payouts':
         return { title: 'Payouts & Financial Disbursements', subtitle: 'Process partner bank withdrawals and track commission earnings' };
       case '/support':

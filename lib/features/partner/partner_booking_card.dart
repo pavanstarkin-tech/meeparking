@@ -369,6 +369,129 @@ class _PartnerBookingCardState extends State<PartnerBookingCard> {
               ),
             ],
           ),
+          if (booking.computedStatus == 'upcoming') ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _showVerifyOtpDialog(booking),
+                icon: const Icon(Icons.pin_outlined, color: Colors.white, size: 16),
+                label: const Text('Verify Entry OTP (Check-in Driver)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4F46E5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ] else if (booking.computedStatus == 'parked') ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  await FirebaseRtdbService.completeBookingParking(booking.id);
+                  if (mounted) {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('✅ Vehicle checked out & parking marked as Completed!'),
+                        backgroundColor: AppColors.greenSuccess,
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.check_circle_outline, color: Colors.white, size: 16),
+                label: const Text('Complete Parking & Release Slot', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _showVerifyOtpDialog(Booking booking) {
+    final otpCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.pin_outlined, color: AppColors.primary),
+            SizedBox(width: 8),
+            Text('Verify Entry OTP', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Ask customer ${_customerName.isNotEmpty ? _customerName : "driver"} for the 4-digit parking entry OTP:'),
+            const SizedBox(height: 14),
+            TextField(
+              controller: otpCtrl,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 8),
+              decoration: InputDecoration(
+                hintText: '••••',
+                counterText: '',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final entered = otpCtrl.text.trim();
+              if (entered.isEmpty) return;
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.of(dialogCtx).pop();
+
+              final success = await FirebaseRtdbService.verifyBookingEntryOtp(booking.id, entered);
+              if (mounted) {
+                if (success) {
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('🚗 OTP Verified! Vehicle marked as Parked.'),
+                      backgroundColor: AppColors.greenSuccess,
+                    ),
+                  );
+                } else {
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('❌ Invalid OTP! Please verify with customer.'),
+                      backgroundColor: AppColors.redError,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Verify & Check In', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
         ],
       ),
     );

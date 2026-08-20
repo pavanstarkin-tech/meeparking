@@ -16,27 +16,51 @@ class WalletScreen extends ConsumerStatefulWidget {
 
 class _WalletScreenState extends ConsumerState<WalletScreen> {
   final RazorpayService _razorpayService = RazorpayService();
+  double _pendingTopUpAmount = 0.0;
 
   @override
   void initState() {
     super.initState();
     _razorpayService.init(
       onSuccess: (res) async {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              backgroundColor: AppColors.greenSuccess,
-              content: Text('Payment Successful! Wallet updated.'),
-            ),
-          );
+        final amt = _pendingTopUpAmount;
+        _pendingTopUpAmount = 0.0;
+        final user = ref.read(userProfileProvider);
+        if (amt > 0) {
+          await FirebaseRtdbService.topUpWallet(user.uid, amt, paymentId: res.paymentId);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: AppColors.greenSuccess,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                content: Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.white),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Payment Successful! ₹${amt.toInt()} added to wallet.',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
         }
       },
       onFailure: (res) {
+        _pendingTopUpAmount = 0.0;
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               backgroundColor: AppColors.redError,
-              content: Text('Payment Failed: ${res.message}'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              content: Text(
+                'Payment Cancelled / Failed: ${res.message ?? "Transaction not completed"}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
           );
         }
@@ -300,41 +324,28 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                         child: ElevatedButton(
                           onPressed: selectedAmount <= 0
                               ? null
-                              : () async {
+                              : () {
                                   final amt = selectedAmount;
+                                  _pendingTopUpAmount = amt;
                                   Navigator.of(ctx).pop();
 
-                                  // 1. Trigger Razorpay Checkout
+                                  // Trigger Razorpay Checkout with Orders API & Customer details
                                   _razorpayService.openCheckout(
                                     amount: amt,
                                     name: 'Mee Parking',
-                                    description: 'Wallet Top-up',
+                                    description: 'Wallet Top-up of ₹${amt.toInt()}',
                                     email: user.email.isNotEmpty ? user.email : 'user@meeparking.com',
                                     contact: user.phone.isNotEmpty ? user.phone : '9876543210',
+                                    customerName: user.name.isNotEmpty ? user.name : 'Customer',
+                                    customerId: user.uid,
+                                    notes: {
+                                      'userId': user.uid,
+                                      'purpose': 'wallet_topup',
+                                      'userName': user.name,
+                                      'userEmail': user.email,
+                                      'userPhone': user.phone,
+                                    },
                                   );
-
-                                  // 2. Perform Realtime DB Wallet Top-up
-                                  await FirebaseRtdbService.topUpWallet(user.uid, amt);
-
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        backgroundColor: AppColors.greenSuccess,
-                                        behavior: SnackBarBehavior.floating,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                        content: Row(
-                                          children: [
-                                            const Icon(Icons.check_circle, color: Colors.white),
-                                            const SizedBox(width: 10),
-                                            Text(
-                                              '₹${amt.toInt()} added to your wallet successfully!',
-                                              style: const TextStyle(fontWeight: FontWeight.bold),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  }
                                 },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
@@ -474,12 +485,9 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                   ),
                   if (balance == 0.0)
                     TextButton.icon(
-                      onPressed: () async {
-                        final user = ref.read(userProfileProvider);
-                        await FirebaseRtdbService.topUpWallet(user.uid, 500.0);
-                      },
-                      icon: const Icon(Icons.refresh, size: 14, color: AppColors.primary),
-                      label: const Text('Top-up ₹500', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      onPressed: () => _showAddMoneyBottomSheet(context),
+                      icon: const Icon(Icons.add_card_outlined, size: 14, color: AppColors.primary),
+                      label: const Text('Top-up Wallet', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                     ),
                 ],
               ),

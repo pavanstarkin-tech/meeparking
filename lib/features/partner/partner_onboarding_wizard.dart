@@ -181,6 +181,7 @@ class _PartnerOnboardingWizardState extends ConsumerState<PartnerOnboardingWizar
   void initState() {
     super.initState();
     _getCurrentLocation();
+    _loadAdminPricingDefaults();
 
     // If adding listing only, start on step 1 (Listing details & Location).
     // During partner initial onboarding, always start at Step 0 (Contact Details)!
@@ -198,6 +199,34 @@ class _PartnerOnboardingWizardState extends ConsumerState<PartnerOnboardingWizar
         }
       });
     }
+  }
+
+  /// Load admin-configured pricing defaults and populate pricing inputs
+  Future<void> _loadAdminPricingDefaults() async {
+    try {
+      final config = await FirebaseRtdbService.getAdminPricingConfig();
+      if (!mounted) return;
+      setState(() {
+        final twoW = (config['twoWheeler'] as Map?) ?? {};
+        final threeW = (config['threeWheeler'] as Map?) ?? {};
+        final fourW = (config['fourWheeler'] as Map?) ?? {};
+
+        if (_twoWheelerHourlyCtrl.text.isEmpty) _twoWheelerHourlyCtrl.text = (twoW['hourly'] ?? 20).toString().replaceAll('.0', '');
+        if (_twoWheelerDailyCtrl.text.isEmpty) _twoWheelerDailyCtrl.text = (twoW['daily'] ?? 100).toString().replaceAll('.0', '');
+        if (_twoWheelerWeeklyCtrl.text.isEmpty) _twoWheelerWeeklyCtrl.text = (twoW['weekly'] ?? 600).toString().replaceAll('.0', '');
+        if (_twoWheelerMonthlyCtrl.text.isEmpty) _twoWheelerMonthlyCtrl.text = (twoW['monthly'] ?? 1800).toString().replaceAll('.0', '');
+
+        if (_threeWheelerHourlyCtrl.text.isEmpty) _threeWheelerHourlyCtrl.text = (threeW['hourly'] ?? 30).toString().replaceAll('.0', '');
+        if (_threeWheelerDailyCtrl.text.isEmpty) _threeWheelerDailyCtrl.text = (threeW['daily'] ?? 150).toString().replaceAll('.0', '');
+        if (_threeWheelerWeeklyCtrl.text.isEmpty) _threeWheelerWeeklyCtrl.text = (threeW['weekly'] ?? 900).toString().replaceAll('.0', '');
+        if (_threeWheelerMonthlyCtrl.text.isEmpty) _threeWheelerMonthlyCtrl.text = (threeW['monthly'] ?? 2700).toString().replaceAll('.0', '');
+
+        if (_fourWheelerHourlyCtrl.text.isEmpty) _fourWheelerHourlyCtrl.text = (fourW['hourly'] ?? 60).toString().replaceAll('.0', '');
+        if (_fourWheelerDailyCtrl.text.isEmpty) _fourWheelerDailyCtrl.text = (fourW['daily'] ?? 300).toString().replaceAll('.0', '');
+        if (_fourWheelerWeeklyCtrl.text.isEmpty) _fourWheelerWeeklyCtrl.text = (fourW['weekly'] ?? 1500).toString().replaceAll('.0', '');
+        if (_fourWheelerMonthlyCtrl.text.isEmpty) _fourWheelerMonthlyCtrl.text = (fourW['monthly'] ?? 4500).toString().replaceAll('.0', '');
+      });
+    } catch (_) {}
   }
 
   /// Request Live GPS Location and update Map position with resilient fallbacks
@@ -498,7 +527,7 @@ class _PartnerOnboardingWizardState extends ConsumerState<PartnerOnboardingWizar
           threeWheeler: threeWheelerRates,
           fourWheeler: fourWheelerRates,
         ),
-        status: 'active',
+        status: 'pending_approval',
         rating: 5.0,
         reviewCount: 0,
         distanceKm: 0.5,
@@ -508,8 +537,13 @@ class _PartnerOnboardingWizardState extends ConsumerState<PartnerOnboardingWizar
             : null,
       );
 
-      // Persist to Firebase Realtime Database
-      await FirebaseRtdbService.addParkingSpace(newSpace);
+      // Persist to Firebase Realtime Database and send approval request to Admin
+      await FirebaseRtdbService.addParkingSpace(newSpace, partnerDetails: {
+        'name': _nameCtrl.text.trim().isNotEmpty ? _nameCtrl.text.trim() : user.name,
+        'phone': _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : user.phone,
+        'email': user.email,
+        'uid': user.uid,
+      });
 
       // Mark partner profile as onboarding completed with full metadata
       await FirebaseRtdbService.updateUserProfile(user.uid, {
@@ -535,9 +569,20 @@ class _PartnerOnboardingWizardState extends ConsumerState<PartnerOnboardingWizar
         (route) => false,
       );
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Parking Space successfully registered! Welcome Partner.'),
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.verified, color: Colors.white),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text('Parking Space submitted! Request sent to Admin for review & approval.'),
+              ),
+            ],
+          ),
           backgroundColor: AppColors.greenSuccess,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 4),
         ),
       );
     }
@@ -597,6 +642,32 @@ class _PartnerOnboardingWizardState extends ConsumerState<PartnerOnboardingWizar
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Please enter the street address / area.'),
+            backgroundColor: AppColors.redError,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        return;
+      }
+    }
+
+    // Step 3 (0-indexed): Pricing & Spot Photos - Enforce Minimum 4 Images
+    if (_currentStep == 3) {
+      if (_uploadedPhotos.length < 4) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Please upload at least 4 photos of your parking space (${_uploadedPhotos.length}/4 uploaded).',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
             backgroundColor: AppColors.redError,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1113,9 +1184,11 @@ class _PartnerOnboardingWizardState extends ConsumerState<PartnerOnboardingWizar
                 children: [
                   Icon(Icons.straighten, color: AppColors.primary),
                   SizedBox(width: 8),
-                  Text(
-                    'Area & Capacity (Dynamically Calculated & Editable)',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  Expanded(
+                    child: Text(
+                      'Area & Capacity (Dynamically Calculated & Editable)',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
                   ),
                 ],
               ),
@@ -1205,105 +1278,166 @@ class _PartnerOnboardingWizardState extends ConsumerState<PartnerOnboardingWizar
     );
   }
 
-  // STEP 3: Parking Amenities Selection (Structured 2 to 3 per row with big dot indicators)
+  IconData _getAmenityIcon(String amenity) {
+    final lower = amenity.toLowerCase();
+    if (lower.contains('cctv') || lower.contains('camera')) return Icons.videocam_outlined;
+    if (lower.contains('ev') || lower.contains('charg')) return Icons.ev_station_outlined;
+    if (lower.contains('cover') || lower.contains('roof')) return Icons.roofing_outlined;
+    if (lower.contains('guard') || lower.contains('security')) return Icons.security_outlined;
+    if (lower.contains('light')) return Icons.lightbulb_outline;
+    if (lower.contains('valet')) return Icons.room_service_outlined;
+    if (lower.contains('wash')) return Icons.local_car_wash_outlined;
+    if (lower.contains('inflator') || lower.contains('air')) return Icons.air_outlined;
+    if (lower.contains('wheelchair') || lower.contains('accessible')) return Icons.accessible_outlined;
+    return Icons.local_parking_rounded;
+  }
+
+  // STEP 3: Multi-Category Amenities Selection
   Widget _buildStep3Amenities() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Step 3: Parking Amenities',
+          'Step 3: Parking Amenities & Security',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimaryLight),
         ),
         const SizedBox(height: 6),
         const Text(
-          'Select all facilities available at your parking spot. Tap to toggle options.',
+          'Select all features available at your facility (e.g. CCTV, EV Charging, Security Guard).',
           style: TextStyle(fontSize: 13, color: AppColors.textSecondaryLight),
         ),
         const SizedBox(height: 20),
 
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final totalWidth = constraints.maxWidth;
-            final itemWidthHalf = (totalWidth - 10) / 2;
-            final itemWidthThird = (totalWidth - 20) / 3;
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _availableAmenities.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 1.6,
+          ),
+          itemBuilder: (context, index) {
+            final amenity = _availableAmenities[index];
+            final isSelected = _selectedAmenities.contains(amenity);
 
-            return Wrap(
-              spacing: 8,
-              runSpacing: 10,
-              children: _availableAmenities.map((amenity) {
-                final isSelected = _selectedAmenities.contains(amenity);
-                final isLong = amenity.length > 14;
-                final width = isLong ? itemWidthHalf : itemWidthThird;
-
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      if (isSelected) {
-                        _selectedAmenities.remove(amenity);
-                      } else {
-                        _selectedAmenities.add(amenity);
-                      }
-                    });
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: width,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: isSelected ? AppColors.primary : Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: isSelected ? AppColors.primary : Colors.grey.shade300,
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        if (isSelected)
-                          BoxShadow(
-                            color: AppColors.primary.withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Big circular dot badge
-                        Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isSelected ? Colors.white : AppColors.primary,
-                            boxShadow: [
-                              BoxShadow(
-                                color: (isSelected ? Colors.white : AppColors.primary).withOpacity(0.5),
-                                blurRadius: 4,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            ParkingSpace.sanitizeAmenity(amenity),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : AppColors.textPrimaryLight,
-                              fontWeight: FontWeight.bold,
-                              fontSize: isLong ? 11.5 : 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+            return InkWell(
+              onTap: () {
+                setState(() {
+                  if (isSelected) {
+                    _selectedAmenities.remove(amenity);
+                  } else {
+                    _selectedAmenities.add(amenity);
+                  }
+                });
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isSelected ? AppColors.primary.withOpacity(0.08) : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isSelected ? AppColors.primary : Colors.grey.shade200,
+                    width: isSelected ? 2 : 1,
                   ),
-                );
-              }).toList(),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _getAmenityIcon(amenity),
+                      color: isSelected ? AppColors.primary : Colors.grey.shade700,
+                      size: 26,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      amenity,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                        color: isSelected ? AppColors.primary : AppColors.textPrimaryLight,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
             );
           },
         ),
+        const SizedBox(height: 20),
+
+        // Custom Add Amenity Box
+        StatefulBuilder(
+          builder: (context, setCustomState) {
+            final customCtrl = TextEditingController();
+            return Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: customCtrl,
+                    decoration: InputDecoration(
+                      hintText: 'Add custom feature (e.g. Tire Inflator)',
+                      fillColor: Colors.white,
+                      filled: true,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    final txt = customCtrl.text.trim();
+                    if (txt.isNotEmpty) {
+                      setState(() {
+                        if (!_availableAmenities.contains(txt)) {
+                          _availableAmenities.add(txt);
+                        }
+                        _selectedAmenities.add(txt);
+                      });
+                      customCtrl.clear();
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Text('Add', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+
+        // Selected Amenities Chips preview
+        if (_selectedAmenities.isNotEmpty)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _selectedAmenities.map((am) {
+              return Chip(
+                label: Text(am, style: const TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.bold)),
+                backgroundColor: AppColors.primary.withOpacity(0.12),
+                deleteIcon: const Icon(Icons.close, size: 14, color: AppColors.primary),
+                onDeleted: () {
+                  setState(() => _selectedAmenities.remove(am));
+                },
+                side: BorderSide.none,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              );
+            }).toList(),
+          ),
       ],
     );
   }
@@ -1366,16 +1500,19 @@ class _PartnerOnboardingWizardState extends ConsumerState<PartnerOnboardingWizar
         ),
         const SizedBox(height: 24),
 
-        // Photo Upload Section
+        // Photo Upload Section with Min 4 Requirement
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Upload Parking Spot Photos', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-            if (_uploadedPhotos.isNotEmpty)
-              Text(
-                '${_uploadedPhotos.length} photo(s) added',
-                style: const TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.bold),
+            const Text('Upload Parking Spot Photos (Min 4)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            Text(
+              '${_uploadedPhotos.length}/4 uploaded',
+              style: TextStyle(
+                fontSize: 12,
+                color: _uploadedPhotos.length >= 4 ? AppColors.greenSuccess : AppColors.redError,
+                fontWeight: FontWeight.bold,
               ),
+            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -1614,7 +1751,14 @@ class _PartnerOnboardingWizardState extends ConsumerState<PartnerOnboardingWizar
               Switch(
                 value: _is24x7,
                 activeColor: AppColors.primary,
-                onChanged: (val) => setState(() => _is24x7 = val),
+                onChanged: (val) {
+                  setState(() {
+                    _is24x7 = val;
+                    if (val) {
+                      _weeklyDays.updateAll((key, value) => true);
+                    }
+                  });
+                },
               ),
             ],
           ),

@@ -137,3 +137,45 @@ export interface DashboardMetrics {
   pendingPayoutsAmount: number;
   openSupportTickets: number;
 }
+
+export interface VehicleRateMatrix {
+  hourly: number;
+  daily: number;
+  weekly: number;
+  monthly: number;
+}
+
+export interface AdminBasePricing {
+  twoWheeler: VehicleRateMatrix;
+  threeWheeler: VehicleRateMatrix;
+  fourWheeler: VehicleRateMatrix;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface PartnerApprovalRequest {
+  spaceId: string;
+  ownerId: string;
+  partnerName?: string;
+  partnerPhone?: string;
+  partnerEmail?: string;
+  spaceTitle: string;
+  address: string;
+  city?: string;
+  status: 'pending_approval' | 'approved' | 'rejected';
+  totalLandSqMeters?: number;
+  maxCars?: number;
+  maxBikes?: number;
+  images?: string[];
+  pricing?: {
+    hourly?: number;
+    daily?: number;
+    weekly?: number;
+    monthly?: number;
+    twoWheeler?: VehicleRateMatrix;
+    threeWheeler?: VehicleRateMatrix;
+    fourWheeler?: VehicleRateMatrix;
+  };
+  submittedAt: string;
+  rejectionReason?: string;
+}

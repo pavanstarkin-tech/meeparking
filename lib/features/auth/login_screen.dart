@@ -154,30 +154,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Brand Logo Header
+                    // Brand Logo Header (2X Size)
                     Center(
                       child: Column(
                         children: [
                           Image.asset(
                             'assets/mee_parking_logo.png',
-                            width: 75,
-                            height: 75,
+                            width: 150,
+                            height: 150,
                             fit: BoxFit.contain,
                             errorBuilder: (_, __, ___) => const Icon(
                               Icons.local_parking_rounded,
-                              size: 50,
+                              size: 100,
                               color: AppColors.primary,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
                           Image.asset(
                             'assets/mee_parking_text_logo.png',
-                            width: 130,
+                            width: 260,
                             fit: BoxFit.contain,
                             errorBuilder: (_, __, ___) => const Text(
                               'Mee Parking',
                               style: TextStyle(
-                                fontSize: 22,
+                                fontSize: 26,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.primary,
                               ),

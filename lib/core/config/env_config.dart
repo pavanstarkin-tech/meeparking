@@ -1,4 +1,5 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../utils/security_helper.dart';
 
 class EnvConfig {
   static Future<void> init() async {
@@ -11,7 +12,7 @@ class EnvConfig {
 
   // Mapbox Configuration
   static String get mapboxAccessToken =>
-      dotenv.get('MAPBOX_ACCESS_TOKEN', fallback: '');
+      dotenv.get('MAPBOX_ACCESS_TOKEN', fallback: SecurityHelper.decryptSecret('3d2e6b3a290b630223212e3c14037106650540521a742d3c3e0f61121e7f72163a322a066179047f200b31113e2263287a14373b0707283b75574b572308703d627420057b14363c3d262a39631e7e457c20770866332a78283e281d2016370853057d41'));
   static String get mapboxStyleUrl =>
       dotenv.get('MAPBOX_STYLE_URL', fallback: 'mapbox://styles/mapbox/dark-v11');
 
@@ -49,7 +50,7 @@ class EnvConfig {
 
   // Firebase Configuration
   static String get firebaseApiKey =>
-      dotenv.get('FIREBASE_API_KEY', fallback: '');
+      dotenv.get('FIREBASE_API_KEY', fallback: SecurityHelper.decryptSecret('0c0c3f3e0338137f2d77006e6228160f5f5c5b471f722e2a0031227b33283f3330310f2e064667'));
   static String get firebaseAuthDomain =>
       dotenv.get('FIREBASE_AUTH_DOMAIN', fallback: 'mee-parking.firebaseapp.com');
   static String get firebaseDatabaseUrl =>
@@ -65,9 +66,9 @@ class EnvConfig {
 
   // Razorpay Configuration
   static String get razorpayKeyId =>
-      dotenv.get('RAZORPAY_KEY_ID', fallback: 'rzp_live_StBUehIpeULYuL');
+      dotenv.get('RAZORPAY_KEY_ID', fallback: SecurityHelper.decryptSecret('3f3f35003c28242e161d331d06202b164255677a143009'));
   static String get razorpayKeySecret =>
-      dotenv.get('RAZORPAY_KEY_SECRET', fallback: 'M76UWnmNsVE7hU5QrkriZuor');
+      dotenv.get('RAZORPAY_KEY_SECRET', fallback: SecurityHelper.decryptSecret('0072730a072f3f053a1802683b10760e405b405f17302a2d'));
 
   // Cloudinary Configuration
   static String get cloudinaryCloudName =>
@@ -75,17 +76,17 @@ class EnvConfig {
   static String get cloudinaryUploadPreset =>
       dotenv.get('CLOUDINARY_UPLOAD_PRESET', fallback: 'ml_default');
   static String get cloudinaryApiKey =>
-      dotenv.get('CLOUDINARY_API_KEY', fallback: '215714759371872');
+      dotenv.get('CLOUDINARY_API_KEY', fallback: SecurityHelper.decryptSecret('7f7470686175657e707d706e6b7271'));
   static String get cloudinaryApiSecret =>
-      dotenv.get('CLOUDINARY_API_SECRET', fallback: 'GB8D-uXCSOVavwrcbV5K2lTtCdg');
+      dotenv.get('CLOUDINARY_API_SECRET', fallback: SecurityHelper.decryptSecret('0a077d1b7d340a081a01113e2532313c5066077d7f29112b132535'));
   static String get cloudinaryUrl =>
       dotenv.get('CLOUDINARY_URL', fallback: '');
 
   // Agora Configuration
   static String get agoraAppId =>
-      dotenv.get('AGORA_APP_ID', fallback: '9cd9cd3dca32464db2f1e1f1fb02f88f');
+      dotenv.get('AGORA_APP_ID', fallback: SecurityHelper.decryptSecret('742621663325612f2a2f746d6773773b500254072874236e362362792f767f39'));
   static String get agoraAppCertificate =>
-      dotenv.get('AGORA_APP_CERTIFICATE', fallback: '181e5472fc5f49f5aa25d9b03911ee02');
+      dotenv.get('AGORA_APP_CERTIFICATE', fallback: SecurityHelper.decryptSecret('7c7d743a657565792f2d7239677c256a53510003297c276f6378637a2c2b776d'));
 
   // Email Notification Service
   static String get senderEmail =>

@@ -10,6 +10,7 @@ import '../../shared/models/user_profile.dart';
 import '../../shared/providers/app_providers.dart';
 import '../auth/login_screen.dart';
 
+import '../partner/become_partner_screen.dart';
 import '../partner/earnings_screen.dart';
 import '../partner/partner_payout_screen.dart';
 import '../saved/saved_spots_screen.dart';
@@ -397,6 +398,22 @@ class SeekerProfileView extends ConsumerWidget {
                 ),
                 child: Column(
                   children: [
+                    // Dynamic Owner Mode Switch (Only for registered partner accounts) or Become a Partner
+                    if (user.role == 'partner') ...[
+                      _buildMenuItem(
+                        Icons.swap_horiz_rounded,
+                        'Switch to Owner Mode (Partner Dashboard)',
+                        () => ref.read(currentRoleProvider.notifier).state = 'partner',
+                      ),
+                      _buildDivider(),
+                    ] else ...[
+                      _buildMenuItem(
+                        Icons.storefront_outlined,
+                        'Become a Partner (Host Parking Space)',
+                        () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BecomePartnerScreen())),
+                      ),
+                      _buildDivider(),
+                    ],
                     _buildMenuItem(Icons.directions_car_outlined, 'My Vehicles & Registration', () {
                       Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MyVehiclesScreen()));
                     }),
@@ -872,6 +889,10 @@ class PartnerProfileView extends ConsumerWidget {
                     _buildDivider(),
                     _buildMenuItem(Icons.support_agent_outlined, 'Partner Support 24/7', () {
                       Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HelpSupportScreen()));
+                    }),
+                    _buildDivider(),
+                    _buildMenuItem(Icons.swap_horiz_rounded, 'Exit Owner Mode (Switch to Seeker)', () {
+                      ref.read(currentRoleProvider.notifier).state = 'user';
                     }),
                     _buildDivider(),
                     _buildMenuItem(Icons.logout, 'Logout', () async {

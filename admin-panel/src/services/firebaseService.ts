@@ -8,6 +8,8 @@ import {
   SupportTicket,
   WalletTransaction,
   DashboardMetrics,
+  AdminBasePricing,
+  PartnerApprovalRequest,
 } from '../types';
 
 export class FirebaseAdminService {
@@ -465,5 +467,141 @@ export class FirebaseAdminService {
       pendingPayoutsAmount,
       openSupportTickets,
     };
+  }
+
+  // ==========================================
+  // 8. ADMIN BASE PRICING & TARIFF MATRIX
+  // ==========================================
+  static subscribeBasePricing(callback: (pricing: AdminBasePricing) => void): () => void {
+    const pricingRef = ref(db, 'adminConfig/basePricing');
+    const unsubscribe = onValue(
+      pricingRef,
+      (snapshot) => {
+        const val = snapshot.val();
+        if (!val || typeof val !== 'object') {
+          // Fallback defaults
+          callback({
+            twoWheeler: { hourly: 30, daily: 150, weekly: 750, monthly: 2250 },
+            threeWheeler: { hourly: 45, daily: 225, weekly: 1125, monthly: 3375 },
+            fourWheeler: { hourly: 60, daily: 300, weekly: 1500, monthly: 4500 },
+          });
+          return;
+        }
+        callback({
+          twoWheeler: {
+            hourly: Number(val.twoWheeler?.hourly ?? 30),
+            daily: Number(val.twoWheeler?.daily ?? 150),
+            weekly: Number(val.twoWheeler?.weekly ?? 750),
+            monthly: Number(val.twoWheeler?.monthly ?? 2250),
+          },
+          threeWheeler: {
+            hourly: Number(val.threeWheeler?.hourly ?? 45),
+            daily: Number(val.threeWheeler?.daily ?? 225),
+            weekly: Number(val.threeWheeler?.weekly ?? 1125),
+            monthly: Number(val.threeWheeler?.monthly ?? 3375),
+          },
+          fourWheeler: {
+            hourly: Number(val.fourWheeler?.hourly ?? 60),
+            daily: Number(val.fourWheeler?.daily ?? 300),
+            weekly: Number(val.fourWheeler?.weekly ?? 1500),
+            monthly: Number(val.fourWheeler?.monthly ?? 4500),
+          },
+          updatedAt: val.updatedAt || undefined,
+          updatedBy: val.updatedBy || 'Super Admin',
+        });
+      },
+      (error) => {
+        console.error('Error streaming base pricing:', error);
+        callback({
+          twoWheeler: { hourly: 30, daily: 150, weekly: 750, monthly: 2250 },
+          threeWheeler: { hourly: 45, daily: 225, weekly: 1125, monthly: 3375 },
+          fourWheeler: { hourly: 60, daily: 300, weekly: 1500, monthly: 4500 },
+        });
+      }
+    );
+    return () => unsubscribe();
+  }
+
+  static async saveBasePricing(pricing: AdminBasePricing): Promise<void> {
+    const pricingRef = ref(db, 'adminConfig/basePricing');
+    await set(pricingRef, {
+      ...pricing,
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'Admin Console',
+    });
+  }
+
+  // ==========================================
+  // 9. PARTNER LISTING APPROVAL REQUESTS
+  // ==========================================
+  static subscribePartnerRequests(callback: (requests: PartnerApprovalRequest[]) => void): () => void {
+    const requestsRef = ref(db, 'admin/partnerRequests');
+    const unsubscribe = onValue(
+      requestsRef,
+      (snapshot) => {
+        const val = snapshot.val();
+        if (!val || typeof val !== 'object') {
+          callback([]);
+          return;
+        }
+        const list: PartnerApprovalRequest[] = Object.entries(val).map(([spaceId, data]) => {
+          const item = data as any;
+          return {
+            spaceId: item.spaceId || spaceId,
+            ownerId: item.ownerId || '',
+            partnerName: item.partnerName || 'Partner',
+            partnerPhone: item.partnerPhone || '',
+            partnerEmail: item.partnerEmail || '',
+            spaceTitle: item.spaceTitle || 'Parking Space',
+            address: item.address || '',
+            city: item.city || '',
+            status: item.status || 'pending_approval',
+            totalLandSqMeters: Number(item.totalLandSqMeters || 0),
+            maxCars: Number(item.maxCars || 0),
+            maxBikes: Number(item.maxBikes || 0),
+            images: Array.isArray(item.images) ? item.images : [],
+            pricing: item.pricing || undefined,
+            submittedAt: item.submittedAt || new Date().toISOString(),
+            rejectionReason: item.rejectionReason,
+          };
+        });
+        list.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+        callback(list);
+      },
+      (error) => {
+        console.error('Error streaming partner requests:', error);
+        callback([]);
+      }
+    );
+    return () => unsubscribe();
+  }
+
+  static async approvePartnerRequest(spaceId: string): Promise<void> {
+    const requestRef = ref(db, `admin/partnerRequests/${spaceId}`);
+    const spaceRef = ref(db, `parkingSpaces/${spaceId}`);
+    await update(requestRef, {
+      status: 'approved',
+      approvedAt: new Date().toISOString(),
+    });
+    await update(spaceRef, {
+      status: 'active',
+      isActive: true,
+      approvedAt: new Date().toISOString(),
+    });
+  }
+
+  static async rejectPartnerRequest(spaceId: string, reason: string): Promise<void> {
+    const requestRef = ref(db, `admin/partnerRequests/${spaceId}`);
+    const spaceRef = ref(db, `parkingSpaces/${spaceId}`);
+    await update(requestRef, {
+      status: 'rejected',
+      rejectionReason: reason,
+      rejectedAt: new Date().toISOString(),
+    });
+    await update(spaceRef, {
+      status: 'rejected',
+      isActive: false,
+      rejectionReason: reason,
+    });
   }
 }

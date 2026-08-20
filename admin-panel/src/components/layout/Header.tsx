@@ -1,5 +1,6 @@
 import React from 'react';
-import { Search, Bell, Shield, Sparkles } from 'lucide-react';
+import { Search, Bell, Shield, LogOut } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 interface HeaderProps {
   title: string;
@@ -14,6 +15,8 @@ export const Header: React.FC<HeaderProps> = ({
   onSearch,
   unreadCount = 0,
 }) => {
+  const { user, logout } = useAuth();
+
   return (
     <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between sticky top-0 z-20 shadow-sm/50">
       {/* Title section */}
@@ -51,15 +54,23 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </button>
 
-        {/* Profile Avatar */}
+        {/* Profile Avatar & Logout */}
         <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
           <div className="w-8 h-8 rounded-full brand-gradient flex items-center justify-center text-white text-xs font-bold shadow-sm">
             <Shield className="w-4 h-4" />
           </div>
           <div className="hidden md:block text-left">
             <p className="text-xs font-bold text-slate-900 leading-tight">Master Admin</p>
-            <p className="text-[10px] text-purple-600 font-semibold">Super Administrator</p>
+            <p className="text-[10px] text-purple-600 font-semibold truncate max-w-[120px]">{user?.email || 'admin@gmail.com'}</p>
           </div>
+
+          <button
+            onClick={() => logout()}
+            title="Sign Out of Admin Console"
+            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl border border-transparent hover:border-rose-100 transition-all cursor-pointer ml-1"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </header>

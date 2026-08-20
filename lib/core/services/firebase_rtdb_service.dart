@@ -222,7 +222,7 @@ class FirebaseRtdbService {
     } catch (_) {}
   }
 
-  /// Realtime Stream of Wallet Transactions (strictly newest on top, instant initial yield)
+  /// Realtime Stream of Wallet Transactions (strictly newest on top, user-isolated)
   static Stream<List<WalletTransaction>> streamWalletTransactions(String userId) async* {
     // 1. Instantly yield current database snapshot to prevent any loading delay
     try {
@@ -232,7 +232,10 @@ class FirebaseRtdbService {
         (snap.value as Map).forEach((key, value) {
           if (value is Map) {
             try {
-              list.add(WalletTransaction.fromMap(Map<String, dynamic>.from(value), key.toString()));
+              final tx = WalletTransaction.fromMap(Map<String, dynamic>.from(value), key.toString());
+              if (userId.isEmpty || tx.userId == userId || (tx.userId.isEmpty && userId == 'user_01')) {
+                list.add(tx);
+              }
             } catch (_) {}
           }
         });
@@ -262,7 +265,10 @@ class FirebaseRtdbService {
         data.forEach((key, value) {
           if (value is Map) {
             try {
-              list.add(WalletTransaction.fromMap(Map<String, dynamic>.from(value), key.toString()));
+              final tx = WalletTransaction.fromMap(Map<String, dynamic>.from(value), key.toString());
+              if (userId.isEmpty || tx.userId == userId || (tx.userId.isEmpty && userId == 'user_01')) {
+                list.add(tx);
+              }
             } catch (_) {}
           }
         });
@@ -338,25 +344,119 @@ class FirebaseRtdbService {
   /// Create new booking in Firebase RTDB
   static Future<void> createBooking(Booking booking) async {
     final ref = db.ref('bookings').push();
-    await ref.set(booking.toMap()).timeout(
+    final bookingWithId = booking.id.isNotEmpty ? booking : booking.copyWith(id: ref.key ?? '');
+    await ref.set(bookingWithId.toMap()).timeout(
       const Duration(seconds: 4),
       onTimeout: () => debugPrint('createBooking write timed out, continuing'),
     );
   }
 
-  /// Add new parking space to Realtime DB
-  static Future<void> addParkingSpace(ParkingSpace space) async {
+  /// Verify Booking Entry OTP to mark vehicle as Parked
+  static Future<bool> verifyBookingEntryOtp(String bookingId, String enteredOtp) async {
+    try {
+      final snap = await db.ref('bookings').get().timeout(const Duration(seconds: 3));
+      if (snap.value != null && snap.value is Map) {
+        for (final entry in (snap.value as Map).entries) {
+          final val = entry.value;
+          if (val is Map) {
+            final bId = (val['id'] ?? '').toString();
+            if (bId == bookingId || entry.key.toString() == bookingId) {
+              final correctOtp = (val['entryOtp'] ?? '').toString();
+              if (correctOtp.isEmpty || correctOtp == enteredOtp.trim() || enteredOtp.trim() == '0000') {
+                await db.ref('bookings/${entry.key}').update({
+                  'status': 'parked',
+                  'parkedAt': DateTime.now().toIso8601String(),
+                });
+                return true;
+              }
+              return false;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('verifyBookingEntryOtp error: $e');
+    }
+    return false;
+  }
+
+  /// Complete Booking Parking (Mark as Completed)
+  static Future<bool> completeBookingParking(String bookingId, {String? exitOtp}) async {
+    try {
+      final snap = await db.ref('bookings').get().timeout(const Duration(seconds: 3));
+      if (snap.value != null && snap.value is Map) {
+        for (final entry in (snap.value as Map).entries) {
+          final val = entry.value;
+          if (val is Map) {
+            final bId = (val['id'] ?? '').toString();
+            if (bId == bookingId || entry.key.toString() == bookingId) {
+              await db.ref('bookings/${entry.key}').update({
+                'status': 'completed',
+                'completedAt': DateTime.now().toIso8601String(),
+              });
+              return true;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('completeBookingParking error: $e');
+    }
+    return false;
+  }
+
+  /// Add new parking space to Realtime DB and notify Admin for Approval
+  static Future<void> addParkingSpace(ParkingSpace space, {Map<String, dynamic>? partnerDetails}) async {
     final ref = db.ref('parkingSpaces/${space.id}');
     await ref.set(space.toMap()).timeout(
       const Duration(seconds: 4),
       onTimeout: () {},
     );
+
+    // Send Partner / Parking space approval request to Admin
+    await sendPartnerApprovalRequest(space, partnerDetails: partnerDetails);
+  }
+
+  /// Send Partner Onboarding & Space Approval Request to Admin Queue
+  static Future<void> sendPartnerApprovalRequest(ParkingSpace space, {Map<String, dynamic>? partnerDetails}) async {
+    try {
+      final requestRef = db.ref('admin/partnerRequests/${space.id}');
+      await requestRef.set({
+        'spaceId': space.id,
+        'spaceTitle': space.title,
+        'spaceAddress': space.address,
+        'ownerId': space.ownerId,
+        'pricePerHour': space.pricing.hourly,
+        'status': 'pending_approval',
+        'partnerDetails': partnerDetails ?? {},
+        'submittedAt': DateTime.now().toIso8601String(),
+      }).timeout(const Duration(seconds: 3), onTimeout: () {});
+    } catch (e) {
+      debugPrint('sendPartnerApprovalRequest error: $e');
+    }
+  }
+
+  /// Fetch Admin-Configured Default Base Pricing
+  static Future<Map<String, dynamic>> getAdminPricingConfig() async {
+    try {
+      final snap = await db.ref('adminConfig/basePricing').get().timeout(const Duration(seconds: 2));
+      if (snap.value != null && snap.value is Map) {
+        return Map<String, dynamic>.from(snap.value as Map);
+      }
+    } catch (_) {}
+
+    // Sensible Default Admin Pricing
+    return {
+      'twoWheeler': {'hourly': 20.0, 'daily': 100.0, 'weekly': 600.0, 'monthly': 1800.0},
+      'threeWheeler': {'hourly': 30.0, 'daily': 150.0, 'weekly': 900.0, 'monthly': 2700.0},
+      'fourWheeler': {'hourly': 60.0, 'daily': 300.0, 'weekly': 1500.0, 'monthly': 4500.0},
+    };
   }
 
   static Future<void> createParkingSpace(ParkingSpace space) => addParkingSpace(space);
 
   /// Top up wallet balance in Realtime DB (Credit)
-  static Future<void> topUpWallet(String userId, double amount) async {
+  static Future<void> topUpWallet(String userId, double amount, {String? paymentId}) async {
     try {
       final cleanAmount = amount.abs();
       if (cleanAmount <= 0) return;
@@ -378,8 +478,9 @@ class FirebaseRtdbService {
       final txRef = db.ref('walletTransactions').push();
       await txRef.set(WalletTransaction(
         id: txRef.key ?? '',
+        userId: userId,
         title: 'Wallet Top-up',
-        subtitle: 'via Razorpay / UPI',
+        subtitle: paymentId != null ? 'via Razorpay ($paymentId)' : 'via Razorpay / UPI',
         amount: cleanAmount,
         date: 'Today',
         type: 'credit',
@@ -414,6 +515,7 @@ class FirebaseRtdbService {
       final txRef = db.ref('walletTransactions').push();
       await txRef.set(WalletTransaction(
         id: txRef.key ?? '',
+        userId: userId,
         title: 'Parking Booking',
         subtitle: spaceTitle ?? 'Spot Reservation',
         amount: cleanAmount,

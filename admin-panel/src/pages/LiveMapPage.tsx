@@ -19,10 +19,11 @@ import {
 import { Modal } from '../components/common/Modal';
 import { FirebaseAdminService } from '../services/firebaseService';
 import { ParkingSpace, UserProfile } from '../types';
+import { decryptSecret } from '../utils/security';
 
 const MAPBOX_TOKEN =
   (import.meta as any).env?.VITE_MAPBOX_ACCESS_TOKEN ||
-  'pk.eyJ1IjoicGF2YW5rdW1hcnN3YW15IiwiYSI6ImNtNnc1c3ZpdTBkdGgyanM5b25rN2ZqcncifQ.Ls1e2W6rx3apoBsStWa5Ow';
+  decryptSecret("3d2e6b3a290b630223212e3c14037106650540521a742d3c3e0f61121e7f72163a322a066179047f200b31113e2263287a14373b0707283b75574b572308703d627420057b14363c3d262a39631e7e457c20770866332a78283e281d2016370853057d41");
 
 mapboxgl.accessToken = MAPBOX_TOKEN;
 

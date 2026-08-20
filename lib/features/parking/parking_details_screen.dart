@@ -5,13 +5,14 @@ import 'package:geolocator/geolocator.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/firebase_rtdb_service.dart';
 import '../../core/services/parking_service.dart';
+import '../../core/services/razorpay_service.dart';
 
 import '../../shared/models/booking.dart';
 import '../../shared/models/parking_space.dart';
 import '../../shared/models/user_profile.dart';
 import '../../shared/providers/app_providers.dart';
 import '../../shared/widgets/slot_space_slider.dart';
-import '../bookings/my_bookings_screen.dart';
+import '../booking/booking_confirmed_screen.dart';
 
 
 class ParkingDetailsScreen extends ConsumerStatefulWidget {
@@ -24,6 +25,9 @@ class ParkingDetailsScreen extends ConsumerStatefulWidget {
 }
 
 class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
+  final RazorpayService _razorpayService = RazorpayService();
+  Booking? _pendingRazorpayBooking;
+  double _pendingWalletDeduct = 0.0;
   ParkingSpace? _space;
   bool _isLoading = true;
   bool _isSaved = false;
@@ -77,6 +81,57 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
     super.initState();
     _loadSpaceDetails();
     _fetchUserLocation();
+
+    _razorpayService.init(
+      onSuccess: (res) async {
+        final booking = _pendingRazorpayBooking;
+        final deduct = _pendingWalletDeduct;
+        _pendingRazorpayBooking = null;
+        _pendingWalletDeduct = 0.0;
+
+        if (booking != null) {
+          final finalizedBooking = booking.copyWith(paymentId: res.paymentId);
+          try {
+            await FirebaseRtdbService.createBooking(finalizedBooking);
+            if (deduct > 0) {
+              await FirebaseRtdbService.deductWallet(booking.userId, deduct, spaceTitle: booking.spaceTitle);
+            }
+          } catch (e) {
+            debugPrint('Error saving booking after Razorpay payment: $e');
+          }
+
+          if (mounted) {
+            _showTopToast(
+              context: context,
+              message: '🎉 Booking Confirmed! Spot reserved for ${booking.spaceTitle}',
+              isSuccess: true,
+            );
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => BookingConfirmedScreen(booking: finalizedBooking),
+              ),
+            );
+          }
+        }
+      },
+      onFailure: (res) {
+        _pendingRazorpayBooking = null;
+        _pendingWalletDeduct = 0.0;
+        if (mounted) {
+          _showTopToast(
+            context: context,
+            message: 'Payment Cancelled / Failed: ${res.message ?? "Transaction was not completed"}',
+            isSuccess: false,
+          );
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _razorpayService.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchUserLocation() async {
@@ -1785,44 +1840,69 @@ class _ParkingDetailsScreenState extends ConsumerState<ParkingDetailsScreen> {
                                     return;
                                   }
 
-                                  try {
-                                    // 1. Save booking to Firebase RTDB
-                                    await FirebaseRtdbService.createBooking(booking);
-
-                                    // 2. Deduct wallet
-                                    final double deductAmount = hasEnoughWallet ? totalAmount : walletBalance;
-                                    if (deductAmount > 0) {
-                                      await FirebaseRtdbService.deductWallet(userId, deductAmount, spaceTitle: space.title);
+                                  if (hasEnoughWallet) {
+                                    // 1. Direct Wallet Payment (Full amount covered)
+                                    try {
+                                      await FirebaseRtdbService.createBooking(booking);
+                                      await FirebaseRtdbService.deductWallet(userId, totalAmount, spaceTitle: space.title);
+                                    } catch (e) {
+                                      debugPrint('Booking save error: $e');
+                                      setPayState(() => isProcessing = false);
+                                      if (context.mounted) {
+                                        _showTopToast(
+                                          context: context,
+                                          message: 'Booking failed. Please check connection and try again.',
+                                          isSuccess: false,
+                                        );
+                                      }
+                                      return;
                                     }
-                                  } catch (e) {
-                                    debugPrint('Booking save note: $e');
-                                    setPayState(() => isProcessing = false);
+
+                                    if (ctx.mounted) Navigator.of(ctx).pop();
                                     if (context.mounted) {
                                       _showTopToast(
                                         context: context,
-                                        message: 'Booking failed. Please check connection and try again.',
-                                        isSuccess: false,
+                                        message: '🎉 Booking Confirmed! Spot reserved for ${booking.spaceTitle}',
+                                        isSuccess: true,
+                                      );
+                                      Navigator.of(context).pushReplacement(
+                                        MaterialPageRoute(
+                                          builder: (_) => BookingConfirmedScreen(booking: booking),
+                                        ),
                                       );
                                     }
-                                    return;
-                                  }
+                                  } else {
+                                    // 2. Pay via Razorpay Orders API for remaining amount
+                                    final double payableViaRazorpay = walletBalance > 0 ? (totalAmount - walletBalance) : totalAmount;
+                                    final double walletDeduct = walletBalance > 0 ? walletBalance : 0.0;
 
-                                  // 3. Close payment modal
-                                  if (ctx.mounted) {
-                                    Navigator.of(ctx).pop();
-                                  }
+                                    _pendingRazorpayBooking = booking;
+                                    _pendingWalletDeduct = walletDeduct;
 
-                                  // 4. Redirect to My Bookings Page and show Success Top Toast
-                                  if (context.mounted) {
-                                    _showTopToast(
-                                      context: context,
-                                      message: '🎉 Booking Confirmed! Spot reserved for ${booking.spaceTitle}',
-                                      isSuccess: true,
-                                    );
-                                    Navigator.of(context).pushReplacement(
-                                      MaterialPageRoute(
-                                        builder: (_) => const MyBookingsScreen(),
-                                      ),
+                                    if (ctx.mounted) Navigator.of(ctx).pop();
+
+                                    // Create order via Razorpay Orders API with customer details and launch checkout
+                                    await _razorpayService.openCheckout(
+                                      amount: payableViaRazorpay,
+                                      name: 'Mee Parking',
+                                      description: 'Reservation for ${space.title}',
+                                      email: user.email.isNotEmpty ? user.email : 'user@meeparking.com',
+                                      contact: user.phone.isNotEmpty ? user.phone : '9876543210',
+                                      customerName: user.name.isNotEmpty ? user.name : 'Customer',
+                                      customerId: userId,
+                                      notes: {
+                                        'bookingId': booking.id,
+                                        'spaceId': space.id,
+                                        'spaceTitle': space.title,
+                                        'vehicleNumber': vehicleNo,
+                                        'vehicleModel': vehicleMdl,
+                                        'vehicleType': vehicleCategory,
+                                        'userId': userId,
+                                        'userName': user.name,
+                                        'userPhone': user.phone,
+                                        'userEmail': user.email,
+                                        'totalAmount': totalAmount.toString(),
+                                      },
                                     );
                                   }
                                 },

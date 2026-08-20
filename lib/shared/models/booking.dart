@@ -13,7 +13,11 @@ class Booking {
   final String durationType; // 'hourly' | 'daily' | 'weekly' | 'monthly'
   final double totalAmount;
   final String paymentId;
-  final String status; // 'upcoming' | 'completed' | 'cancelled'
+  final String status; // 'upcoming' | 'parked' | 'completed' | 'cancelled'
+  final String entryOtp; // 4-digit Entry OTP
+  final String exitOtp; // 4-digit Exit OTP
+  final String? parkedAt;
+  final String? completedAt;
   final String createdAt;
   final double? userRating;
   final String? userReview;
@@ -34,10 +38,21 @@ class Booking {
     required this.totalAmount,
     this.paymentId = 'MEE12345678',
     this.status = 'upcoming',
+    String? entryOtp,
+    String? exitOtp,
+    this.parkedAt,
+    this.completedAt,
     required this.createdAt,
     this.userRating,
     this.userReview,
-  });
+  })  : entryOtp = entryOtp ?? _generateOtp(id, 'entry'),
+        exitOtp = exitOtp ?? _generateOtp(id, 'exit');
+
+  static String _generateOtp(String id, String salt) {
+    final seed = '${id}_$salt'.hashCode.abs();
+    final otpNum = 1000 + (seed % 9000);
+    return otpNum.toString();
+  }
 
   /// Check if the booking time slot has passed
   bool get isExpired {
@@ -48,12 +63,63 @@ class Booking {
     return DateTime.now().isAfter(end);
   }
 
-  /// Computed dynamic status ('upcoming' | 'completed' | 'cancelled')
+  /// Computed dynamic status ('upcoming' | 'parked' | 'completed' | 'cancelled')
   String get computedStatus {
     final s = status.toLowerCase();
     if (s == 'cancelled') return 'cancelled';
-    if (isExpired || s == 'completed') return 'completed';
+    if (s == 'completed' || isExpired) return 'completed';
+    if (s == 'parked' || s == 'in_progress') return 'parked';
     return 'upcoming';
+  }
+
+  Booking copyWith({
+    String? id,
+    String? userId,
+    String? spaceId,
+    String? partnerId,
+    String? spaceTitle,
+    String? spaceAddress,
+    String? vehicleNumber,
+    String? vehicleModel,
+    String? vehicleType,
+    String? bookingDate,
+    String? timeSlot,
+    String? durationType,
+    double? totalAmount,
+    String? paymentId,
+    String? status,
+    String? entryOtp,
+    String? exitOtp,
+    String? parkedAt,
+    String? completedAt,
+    String? createdAt,
+    double? userRating,
+    String? userReview,
+  }) {
+    return Booking(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      spaceId: spaceId ?? this.spaceId,
+      partnerId: partnerId ?? this.partnerId,
+      spaceTitle: spaceTitle ?? this.spaceTitle,
+      spaceAddress: spaceAddress ?? this.spaceAddress,
+      vehicleNumber: vehicleNumber ?? this.vehicleNumber,
+      vehicleModel: vehicleModel ?? this.vehicleModel,
+      vehicleType: vehicleType ?? this.vehicleType,
+      bookingDate: bookingDate ?? this.bookingDate,
+      timeSlot: timeSlot ?? this.timeSlot,
+      durationType: durationType ?? this.durationType,
+      totalAmount: totalAmount ?? this.totalAmount,
+      paymentId: paymentId ?? this.paymentId,
+      status: status ?? this.status,
+      entryOtp: entryOtp ?? this.entryOtp,
+      exitOtp: exitOtp ?? this.exitOtp,
+      parkedAt: parkedAt ?? this.parkedAt,
+      completedAt: completedAt ?? this.completedAt,
+      createdAt: createdAt ?? this.createdAt,
+      userRating: userRating ?? this.userRating,
+      userReview: userReview ?? this.userReview,
+    );
   }
 
   /// Resolve the exact DateTime when this parking reservation starts
@@ -249,6 +315,10 @@ class Booking {
         'totalAmount': totalAmount,
         'paymentId': paymentId,
         'status': computedStatus,
+        'entryOtp': entryOtp,
+        'exitOtp': exitOtp,
+        'parkedAt': parkedAt,
+        'completedAt': completedAt,
         'createdAt': createdAt,
         'userRating': userRating,
         'userReview': userReview,
@@ -257,8 +327,9 @@ class Booking {
   Map<String, dynamic> toMap() => toJson();
 
   factory Booking.fromJson(Map<String, dynamic> json, [String? docId]) {
+    final bId = docId ?? json['id'] ?? '';
     return Booking(
-      id: docId ?? json['id'] ?? '',
+      id: bId,
       userId: json['userId'] ?? '',
       spaceId: json['spaceId'] ?? '',
       partnerId: json['partnerId'] ?? '',
@@ -273,6 +344,10 @@ class Booking {
       totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 60.0,
       paymentId: json['paymentId'] ?? 'MEE12345678',
       status: json['status'] ?? 'upcoming',
+      entryOtp: json['entryOtp']?.toString(),
+      exitOtp: json['exitOtp']?.toString(),
+      parkedAt: json['parkedAt']?.toString(),
+      completedAt: json['completedAt']?.toString(),
       createdAt: json['createdAt']?.toString() ?? DateTime.now().toIso8601String(),
       userRating: (json['userRating'] as num?)?.toDouble(),
       userReview: json['userReview'] as String?,

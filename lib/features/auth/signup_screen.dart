@@ -264,30 +264,30 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Brand Logo Header (matching Login screen)
+                    // Brand Logo Header (2X Size)
                     Center(
                       child: Column(
                         children: [
                           Image.asset(
                             'assets/mee_parking_logo.png',
-                            width: 70,
-                            height: 70,
+                            width: 140,
+                            height: 140,
                             fit: BoxFit.contain,
                             errorBuilder: (_, __, ___) => const Icon(
                               Icons.local_parking_rounded,
-                              size: 48,
+                              size: 96,
                               color: AppColors.primary,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
                           Image.asset(
                             'assets/mee_parking_text_logo.png',
-                            width: 125,
+                            width: 250,
                             fit: BoxFit.contain,
                             errorBuilder: (_, __, ___) => const Text(
                               'Mee Parking',
                               style: TextStyle(
-                                fontSize: 20,
+                                fontSize: 24,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.primary,
                               ),

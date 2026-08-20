@@ -1,5 +1,6 @@
 class WalletTransaction {
   final String id;
+  final String userId;
   final String title;
   final String subtitle;
   final String date;
@@ -9,6 +10,7 @@ class WalletTransaction {
 
   WalletTransaction({
     required this.id,
+    this.userId = '',
     required this.title,
     required this.subtitle,
     required this.date,
@@ -19,6 +21,7 @@ class WalletTransaction {
 
   Map<String, dynamic> toJson() => {
         'id': id,
+        'userId': userId,
         'title': title,
         'subtitle': subtitle,
         'date': date,
@@ -56,6 +59,7 @@ class WalletTransaction {
 
     return WalletTransaction(
       id: docId ?? json['id'] ?? '',
+      userId: (json['userId'] ?? '').toString(),
       title: cleanTitle,
       subtitle: cleanSubtitle,
       date: json['date'] ?? 'Today',

@@ -1,9 +1,10 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
+import { decryptSecret } from '../utils/security';
 
 export const firebaseConfig = {
-  apiKey: (import.meta as any).env?.VITE_FIREBASE_API_KEY || "AIzaSyA4d9G11mUPmliqR7kuPpp0zfxlctLq4vU",
+  apiKey: (import.meta as any).env?.VITE_FIREBASE_API_KEY || decryptSecret("0c0c3f3e0338137f2d77006e6228160f5f5c5b471f722e2a0031227b33283f3330310f2e064667"),
   authDomain: (import.meta as any).env?.VITE_FIREBASE_AUTH_DOMAIN || "mee-parking.firebaseapp.com",
   databaseURL: (import.meta as any).env?.VITE_FIREBASE_DATABASE_URL || "https://mee-parking-default-rtdb.firebaseio.com",
   projectId: (import.meta as any).env?.VITE_FIREBASE_PROJECT_ID || "mee-parking",

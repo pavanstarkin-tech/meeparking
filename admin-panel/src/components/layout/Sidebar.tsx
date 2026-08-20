@@ -12,6 +12,7 @@ import {
   Settings,
   ShieldCheck,
   ChevronRight,
+  Coins,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -57,6 +58,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       name: 'Parking Spaces',
       path: '/listings',
       icon: ParkingSquare,
+    },
+    {
+      name: 'Base Pricing & Tariffs',
+      path: '/pricing',
+      icon: Coins,
     },
     {
       name: 'Payouts & Earnings',

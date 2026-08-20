@@ -280,7 +280,7 @@ class _PartnerAddSpaceStepperSheetState extends ConsumerState<PartnerAddSpaceSte
           monthly: double.tryParse(_fourWheelerMonthlyCtrl.text) ?? 4500.0,
         ),
       ),
-      status: widget.existingSpace?.status ?? 'active',
+      status: widget.existingSpace?.status ?? 'pending_approval',
       rating: widget.existingSpace?.rating ?? 5.0,
       reviewCount: widget.existingSpace?.reviewCount ?? 0,
       distanceKm: widget.existingSpace?.distanceKm ?? 1.2,
@@ -288,7 +288,12 @@ class _PartnerAddSpaceStepperSheetState extends ConsumerState<PartnerAddSpaceSte
       polygonCoordinates: polyCoords.isNotEmpty ? polyCoords : widget.existingSpace?.polygonCoordinates,
     );
 
-    await FirebaseRtdbService.addParkingSpace(spaceToSave);
+    await FirebaseRtdbService.addParkingSpace(spaceToSave, partnerDetails: {
+      'name': user.name,
+      'phone': user.phone,
+      'email': user.email,
+      'uid': user.uid,
+    });
 
     setState(() => _isPublishing = false);
     if (mounted) {
@@ -298,8 +303,9 @@ class _PartnerAddSpaceStepperSheetState extends ConsumerState<PartnerAddSpaceSte
           content: Text(
             widget.existingSpace != null
                 ? 'Parking Slot updated successfully!'
-                : 'Parking Slot published live to explore map!',
+                : 'Parking Slot submitted! Request sent to Admin for approval.',
           ),
+          backgroundColor: AppColors.greenSuccess,
         ),
       );
     }
@@ -373,6 +379,33 @@ class _PartnerAddSpaceStepperSheetState extends ConsumerState<PartnerAddSpaceSte
                   onPressed: _isPublishing
                       ? null
                       : () async {
+                          // Validate Step 0: Min 4 images for new space
+                          if (_currentStep == 0) {
+                            final totalImages = _uploadedImageUrls.length + _localImageFiles.length;
+                            if (widget.existingSpace == null && totalImages < 4) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Please upload at least 4 photos of the parking space ($totalImages/4 uploaded).',
+                                          style: const TextStyle(fontWeight: FontWeight.w600),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  backgroundColor: AppColors.redError,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                              );
+                              return;
+                            }
+                          }
+
                           if (_currentStep < 4) {
                             if (_currentStep == 3) {
                               await _fetchDynamicAddress();
@@ -391,7 +424,7 @@ class _PartnerAddSpaceStepperSheetState extends ConsumerState<PartnerAddSpaceSte
                       ? const CircularProgressIndicator(color: Colors.white)
                       : Text(
                           _currentStep == 4
-                              ? (widget.existingSpace != null ? 'Save Changes' : 'Confirm & Publish Slot')
+                              ? (widget.existingSpace != null ? 'Save Changes' : 'Confirm & Submit to Admin')
                               : 'Next Step ➔',
                           style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                         ),
