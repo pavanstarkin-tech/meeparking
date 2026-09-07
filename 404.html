@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Mee Parking</title>
+    <script type="text/javascript">
+      // SPA redirect router for GitHub Pages
+      var l = window.location;
+      var path = l.pathname;
+      
+      // Determine base path prefix (/meeparking-admin or /meeparking)
+      var repoPrefix = path.indexOf('/meeparking-admin') === 0 ? '/meeparking-admin' : (path.indexOf('/meeparking') === 0 ? '/meeparking' : '');
+      
+      // If the path is an admin route
+      if (path.indexOf(repoPrefix + '/admin') === 0) {
+        var adminSub = path.slice((repoPrefix + '/admin').length);
+        if (adminSub && !adminSub.startsWith('/')) adminSub = '/' + adminSub;
+        var newUrl = l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+          repoPrefix + '/admin/?/' + (adminSub ? adminSub.slice(1).replace(/&/g, '~and~') : '') +
+          (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+          l.hash;
+        l.replace(newUrl);
+      } else {
+        // Fallback for Flutter web routes
+        var rootSub = path.slice(repoPrefix.length);
+        if (rootSub && !rootSub.startsWith('/')) rootSub = '/' + rootSub;
+        var newUrl = l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+          repoPrefix + '/?/' + (rootSub ? rootSub.slice(1).replace(/&/g, '~and~') : '') +
+          (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+          l.hash;
+        l.replace(newUrl);
+      }
+    </script>
+  </head>
+  <body>
+  </body>
+</html>
